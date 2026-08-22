@@ -1,0 +1,13 @@
+{
+  "name": "obs-replay-clip",
+  "version": "1.0.0",
+  "description": "Save + trim OBS replay buffer clips to a chosen length via obs-websocket",
+  "main": "src/obs_replay_clip.js",
+  "type": "module",
+  "dependencies": {
+    "@t3-oss/env-core": "^0.13.11",
+    "dotenv": "^17.4.2",
+    "obs-websocket-js": "^5.0.6",
+    "zod": "^4.4.3"
+  }
+}

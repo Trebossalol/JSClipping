@@ -1,0 +1,10 @@
+[2026-08-22T19:00:23.556Z] [INFO] Log file: C:\Users\Kevin\Documents\repos\JSClipping\logs\clip-2026-08-22_21-00-23.log
+[2026-08-22T19:00:23.557Z] [INFO] Requested clip length: 30s
+[2026-08-22T19:00:23.557Z] [INFO] OBS_URL: ws://localhost:4455
+[2026-08-22T19:00:23.558Z] [INFO] CLIP_OUTPUT_DIR: G:\\OBS Aufnahmen
+[2026-08-22T19:00:23.577Z] [INFO] Connected to OBS WebSocket
+[2026-08-22T19:00:23.578Z] [INFO] SaveReplayBuffer requested
+[2026-08-22T19:00:24.089Z] [INFO] Poll 1/20: G:/OBS Aufnahmen/Replay 2026-08-22 21-00-06.mp4
+[2026-08-22T19:00:24.593Z] [INFO] Poll 2/20: G:/OBS Aufnahmen/Replay 2026-08-22 21-00-23.mp4
+[2026-08-22T19:00:24.594Z] [INFO] Replay file: G:/OBS Aufnahmen/Replay 2026-08-22 21-00-23.mp4 (476388888 bytes)
+[2026-08-22T19:00:24.597Z] [ERROR] Error: spawn ffprobe ENOENT
