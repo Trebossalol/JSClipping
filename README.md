@@ -62,13 +62,13 @@ npm -v
 
 Without this you will see `spawn ffprobe ENOENT` and the clip will fail after OBS saves the replay.
 
-1. Download an **essentials** build from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) (`ffmpeg-release-essentials.zip`).
-2. Extract it somewhere stable, e.g. `C:\ffmpeg`.
-3. Add the `bin` folder to your user `PATH`:
-   - Win + S → **Edit environment variables for your account**
-   - Select **Path** → **Edit** → **New**
-   - Add `C:\ffmpeg\bin` (or wherever you extracted it)
-4. Close every terminal / Cursor window, open a new one, and confirm:
+The easy way on Windows is winget (adds `ffmpeg` and `ffprobe` to your `PATH`):
+
+```powershell
+winget install "FFmpeg (Essentials Build)"
+```
+
+Close every terminal / Cursor window, open a new one, and confirm:
 
 ```powershell
 ffmpeg -version
@@ -76,6 +76,16 @@ ffprobe -version
 ```
 
 Both commands must print a version. If they are “not recognized”, the PATH change has not taken effect yet.
+
+If you prefer a zip instead:
+
+1. Download an **essentials** build from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) (`ffmpeg-release-essentials.zip`).
+2. Extract it somewhere stable, e.g. `C:\ffmpeg`.
+3. Add the `bin` folder to your user `PATH`:
+   - Win + S → **Edit environment variables for your account**
+   - Select **Path** → **Edit** → **New**
+   - Add `C:\ffmpeg\bin` (or wherever you extracted it)
+4. Close every terminal / Cursor window, open a new one, and confirm `ffmpeg -version` / `ffprobe -version` as above.
 
 ### 3. Clone and install the project
 
