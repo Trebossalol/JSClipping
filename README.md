@@ -14,7 +14,7 @@ JSClipping talks to OBS over WebSocket, dumps the Replay Buffer, then trims the 
        │                                       │
        │              ffmpeg -c copy (last N s)│
        ▼                                       ▼
-  clip_30s.bat                    Replay …_30s.mp4
+  clip.bat 30                     Replay …_30s.mp4
 ```
 
 ---
@@ -23,10 +23,10 @@ JSClipping talks to OBS over WebSocket, dumps the Replay Buffer, then trims the 
 
 | Action Ring segment | Script | Clip length |
 |---|---|---|
-| 30 seconds | [`scripts/clip_30s.bat`](scripts/clip_30s.bat) | last **30s** |
-| 1 minute | [`scripts/clip_60s.bat`](scripts/clip_60s.bat) | last **60s** |
-| 5 minutes | [`scripts/clip_300s.bat`](scripts/clip_300s.bat) | last **5 min** |
-| 10 minutes | [`scripts/clip_600s.bat`](scripts/clip_600s.bat) | last **10 min** (full buffer) |
+| 30 seconds | [`scripts/clip.bat`](scripts/clip.bat) `30` | last **30s** |
+| 1 minute | [`scripts/clip.bat`](scripts/clip.bat) `60` | last **60s** |
+| 5 minutes | [`scripts/clip.bat`](scripts/clip.bat) `300` | last **5 min** |
+| 10 minutes | [`scripts/clip.bat`](scripts/clip.bat) `600` | last **10 min** (full buffer) |
 | Autostart OBS | [`scripts/autostart.bat`](scripts/autostart.bat) | launches OBS with Replay Buffer on, tray-minimized |
 
 Clips land in `CLIP_OUTPUT_DIR` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Each run also writes a log under `logs/`.
@@ -180,18 +180,19 @@ Each `.bat` is a self-contained launcher. Link one file per Action Ring segment.
 4. Choose **Customize Action Ring** (or **Edit Action Ring**).
 5. Click an empty (or existing) segment.
 6. Pick **Open application** / **Open a file** / **Run**.
-7. Browse to one of these files (use the real path on your machine):
+7. Browse to `...\JSClipping\scripts\clip.bat` (use the real path on your machine).
+8. Set the argument to the clip length in seconds:
 
-| Segment label | File |
-|---|---|
-| Clip 30s | `...\JSClipping\scripts\clip_30s.bat` |
-| Clip 1m | `...\JSClipping\scripts\clip_60s.bat` |
-| Clip 5m | `...\JSClipping\scripts\clip_300s.bat` |
-| Clip 10m | `...\JSClipping\scripts\clip_600s.bat` |
+| Segment label | File | Argument |
+|---|---|---|
+| Clip 30s | `...\JSClipping\scripts\clip.bat` | `30` |
+| Clip 1m | `...\JSClipping\scripts\clip.bat` | `60` |
+| Clip 5m | `...\JSClipping\scripts\clip.bat` | `300` |
+| Clip 10m | `...\JSClipping\scripts\clip.bat` | `600` |
 
-8. Give the segment a short name (`30s`, `1m`, `5m`, `10m`) so you can hit it without looking.
-9. Repeat for the other lengths.
-10. Optional: add **Autostart OBS** pointing at `scripts\autostart.bat`.
+9. Give the segment a short name (`30s`, `1m`, `5m`, `10m`) so you can hit it without looking.
+10. Repeat for the other lengths, changing only the seconds argument.
+11. Optional: add **Autostart OBS** pointing at `scripts\autostart.bat`.
 
 ### Tips that actually matter
 
@@ -228,7 +229,7 @@ Replay file: G:\OBS Aufnahmen\Replay 2026-08-22 21-00-23.mp4 (...)
 Saved 30s clip: G:\OBS Aufnahmen\Replay 2026-08-22 21-00-23_30s.mp4
 ```
 
-Or double-click `scripts\clip_30s.bat`. Same thing.
+Or run `scripts\clip.bat 30`. Same thing.
 
 ---
 
@@ -242,10 +243,7 @@ JSClipping/
 ├── logs/                # one log file per clip run
 ├── scripts/
 │   ├── autostart.bat    # OBS + replay buffer, minimized
-│   ├── clip_30s.bat
-│   ├── clip_60s.bat
-│   ├── clip_300s.bat
-│   └── clip_600s.bat
+│   └── clip.bat         # clip.bat 30 | 60 | 300 | 600
 └── src/
     ├── obs_replay_clip.js
     ├── env.js
