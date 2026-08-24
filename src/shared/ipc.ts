@@ -2,11 +2,16 @@ export interface AppConfigDto {
   OBS_URL: string;
   OBS_PASSWORD: string;
   CLIP_OUTPUT_DIR: string;
+  AUTOSTART: boolean;
 }
 
 export interface ObsStatus {
   connected: boolean;
+  /** True when the OBS process is running, even if WebSocket is down. */
+  running: boolean;
   error?: string;
+  /** `null` when connected but OBS has not reported buffer state yet. */
+  replayBufferActive: boolean | null;
 }
 
 export interface ClipRecord {
@@ -32,8 +37,11 @@ export const IpcChannels = {
   listClips: "clips:list",
   clipsChanged: "clips:changed",
   renameClip: "clips:rename",
+  deleteClip: "clips:delete",
   openClip: "clips:open",
   revealClip: "clips:reveal",
+  startObs: "obs:start",
+  stopObs: "obs:stop",
 } as const;
 
 export type CreateClipResult =
@@ -54,8 +62,11 @@ export interface ElectronApi {
   listClips(): Promise<ClipRecord[]>;
   onClipsChanged(callback: (clips: ClipRecord[]) => void): () => void;
   renameClip(id: string, name: string): Promise<RenameClipResult>;
+  deleteClip(id: string): Promise<{ ok: boolean; error?: string }>;
   openClip(id: string): Promise<{ ok: boolean; error?: string }>;
   revealClip(id: string): Promise<{ ok: boolean; error?: string }>;
+  startObs(): Promise<{ ok: boolean; error?: string }>;
+  stopObs(): Promise<{ ok: boolean; error?: string }>;
 }
 
 declare global {

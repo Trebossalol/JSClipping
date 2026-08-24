@@ -39,7 +39,7 @@ export function updateTrayBadge(): void {
   tray.setImage(getTrayIcon(count));
   tray.setToolTip(
     count > 0
-      ? `JSClipping — ${count} unnamed clip${count === 1 ? "" : "s"}`
+      ? `JSClipping — ${count} unbenannte${count === 1 ? "r Clip" : " Clips"}`
       : "JSClipping",
   );
 }
@@ -60,12 +60,12 @@ export function createAppTray(options: {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Open JSClipping",
+      label: "JSClipping öffnen",
       click: () => showMainWindow(getWindow, createWindow),
     },
     { type: "separator" },
     {
-      label: "Quit",
+      label: "Beenden",
       click: () => {
         isQuitting = true;
         app.quit();

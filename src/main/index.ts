@@ -1,5 +1,7 @@
 import fs from "node:fs";
+import { execFile, spawn } from "node:child_process";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { watch, type FSWatcher } from "chokidar";
 import {
@@ -21,6 +23,7 @@ import {
   type AppConfig,
 } from "../shared/config.js";
 import {
+  deleteClip,
   findClip,
   importClipFromFile,
   isIgnoredPath,
@@ -38,7 +41,7 @@ import {
   type ObsStatus,
   type RenameClipResult,
 } from "../shared/ipc.js";
-import { isVideoFile, APP_NAME } from "../shared/paths.js";
+import { isVideoFile, APP_NAME, getRepoRoot } from "../shared/paths.js";
 import {
   createAppTray,
   destroyTray,
@@ -47,6 +50,14 @@ import {
   setTrayAppDataDir,
   updateTrayBadge,
 } from "./tray.js";
+import { getAppIcon } from "./tray-icon.js";
+import {
+  setAppAutostartEnabled,
+  startedAtLogin,
+} from "./autostart.js";
+
+const execFileAsync = promisify(execFile);
+const OBS_IMAGE = "obs64.exe";
 
 const preloadPath = fileURLToPath(
   new URL("../preload/index.mjs", import.meta.url),
@@ -73,11 +84,14 @@ let config: AppConfig;
 let obs = new OBSWebSocket();
 let obsConnected = false;
 let obsError: string | undefined;
+let replayBufferActive: boolean | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempt = 0;
 let intentionalDisconnect = false;
 let folderWatcher: FSWatcher | null = null;
 let clipping = false;
+let obsProcessRunning = false;
+let obsProcessPoll: NodeJS.Timeout | null = null;
 
 function withThumbUrls(clips: ClipRecord[]): ClipRecord[] {
   return clips.map((clip) => ({
@@ -88,12 +102,116 @@ function withThumbUrls(clips: ClipRecord[]): ClipRecord[] {
   }));
 }
 
-function sendObsStatus(): void {
-  const status: ObsStatus = {
+function currentObsStatus(): ObsStatus {
+  return {
     connected: obsConnected,
+    running: obsConnected || obsProcessRunning,
     error: obsError,
+    replayBufferActive: obsConnected ? replayBufferActive : false,
   };
-  mainWindow?.webContents.send(IpcChannels.obsStatusChanged, status);
+}
+
+async function isObsProcessRunning(): Promise<boolean> {
+  try {
+    const { stdout } = await execFileAsync(
+      "tasklist",
+      ["/FI", `IMAGENAME eq ${OBS_IMAGE}`, "/FO", "CSV", "/NH"],
+      { windowsHide: true },
+    );
+    return stdout.toLowerCase().includes(OBS_IMAGE.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+async function refreshObsProcessRunning(): Promise<void> {
+  const next = await isObsProcessRunning();
+  if (next === obsProcessRunning) return;
+  obsProcessRunning = next;
+  sendObsStatus();
+}
+
+async function killObsProcess(): Promise<void> {
+  try {
+    await execFileAsync("taskkill", ["/IM", OBS_IMAGE, "/T"], {
+      windowsHide: true,
+    });
+  } catch {
+    // Process may already be gone or ignored WM_CLOSE.
+  }
+  if (!(await isObsProcessRunning())) return;
+  try {
+    await execFileAsync("taskkill", ["/IM", OBS_IMAGE, "/T", "/F"], {
+      windowsHide: true,
+    });
+  } catch {
+    // ignore
+  }
+}
+
+async function startObsClipMode(): Promise<{ ok: boolean; error?: string }> {
+  const bat = join(getRepoRoot(), "scripts", "autostart.bat");
+  if (!fs.existsSync(bat)) {
+    return {
+      ok: false,
+      error: `autostart.bat nicht gefunden: ${bat}`,
+    };
+  }
+  try {
+    const child = spawn("cmd.exe", ["/d", "/c", bat], {
+      cwd: join(getRepoRoot(), "scripts"),
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.unref();
+    obsProcessRunning = true;
+    intentionalDisconnect = false;
+    reconnectAttempt = 0;
+    sendObsStatus();
+    if (!obsConnected) scheduleReconnect();
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+}
+
+function startObsProcessPoll(): void {
+  if (obsProcessPoll) return;
+  obsProcessPoll = setInterval(() => {
+    void refreshObsProcessRunning();
+  }, 2000);
+}
+
+function sendObsStatus(): void {
+  mainWindow?.webContents.send(IpcChannels.obsStatusChanged, currentObsStatus());
+}
+
+async function refreshReplayBuffer(): Promise<void> {
+  if (!obsConnected) {
+    replayBufferActive = false;
+    return;
+  }
+  try {
+    const status = await obs.call("GetReplayBufferStatus");
+    replayBufferActive = Boolean(status.outputActive);
+  } catch {
+    replayBufferActive = null;
+  }
+}
+
+async function ensureReplayBufferStarted(): Promise<void> {
+  if (!obsConnected) return;
+  await refreshReplayBuffer();
+  if (replayBufferActive === true) return;
+  try {
+    await obs.call("StartReplayBuffer");
+    replayBufferActive = true;
+    sendObsStatus();
+  } catch {
+    // Replay buffer may be disabled in OBS settings.
+  }
 }
 
 function sendClipsChanged(): void {
@@ -144,21 +262,30 @@ async function connectObs(): Promise<void> {
   obs = new OBSWebSocket();
   obs.on("ConnectionClosed", () => {
     obsConnected = false;
-    obsError = "Disconnected from OBS";
+    obsError = "Verbindung zu OBS getrennt";
+    replayBufferActive = false;
     sendObsStatus();
+    void refreshObsProcessRunning();
     if (!intentionalDisconnect) scheduleReconnect();
+  });
+  obs.on("ReplayBufferStateChanged", (event) => {
+    replayBufferActive = Boolean(event.outputActive);
+    sendObsStatus();
   });
   obs.on("ConnectionError", (err) => {
     obsConnected = false;
     obsError = err instanceof Error ? err.message : String(err);
+    replayBufferActive = false;
     sendObsStatus();
   });
 
   try {
     await obs.connect(config.OBS_URL, config.OBS_PASSWORD);
     obsConnected = true;
+    obsProcessRunning = true;
     obsError = undefined;
     reconnectAttempt = 0;
+    await refreshReplayBuffer();
     sendObsStatus();
   } catch (err) {
     obsConnected = false;
@@ -215,7 +342,8 @@ function createWindow(): void {
     minWidth: 720,
     minHeight: 560,
     title: "JSClipping",
-    show: true,
+    icon: getAppIcon(),
+    show: !startedAtLogin(),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -251,7 +379,17 @@ function registerIpc(): void {
       const prevOutput = config.CLIP_OUTPUT_DIR;
       const prevUrl = config.OBS_URL;
       const prevPass = config.OBS_PASSWORD;
+      const prevAutostart = config.AUTOSTART;
+      setAppAutostartEnabled(next.AUTOSTART, appDataDir);
       config = saveConfig(next, appDataDir);
+
+      if (config.AUTOSTART && !prevAutostart) {
+        if (!(await isObsProcessRunning())) {
+          await startObsClipMode();
+        } else {
+          await ensureReplayBufferStarted();
+        }
+      }
 
       if (config.CLIP_OUTPUT_DIR !== prevOutput) {
         startFolderWatcher();
@@ -277,29 +415,58 @@ function registerIpc(): void {
   ipcMain.handle(IpcChannels.pickOutputDir, async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ["openDirectory", "createDirectory"],
-      title: "Choose clip output folder",
+      title: "Clip-Ausgabeordner wählen",
       defaultPath: config.CLIP_OUTPUT_DIR,
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0] ?? null;
   });
 
+  ipcMain.handle(IpcChannels.getObsStatus, (): ObsStatus => currentObsStatus());
+
   ipcMain.handle(
-    IpcChannels.getObsStatus,
-    (): ObsStatus => ({
-      connected: obsConnected,
-      error: obsError,
-    }),
+    IpcChannels.startObs,
+    async (): Promise<{ ok: boolean; error?: string }> => {
+      return startObsClipMode();
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.stopObs,
+    async (): Promise<{ ok: boolean; error?: string }> => {
+      intentionalDisconnect = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      try {
+        await obs.disconnect();
+      } catch {
+        // ignore
+      }
+      obsConnected = false;
+      replayBufferActive = false;
+      try {
+        await killObsProcess();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        sendObsStatus();
+        return { ok: false, error: message };
+      }
+      obsProcessRunning = false;
+      sendObsStatus();
+      return { ok: true };
+    },
   );
 
   ipcMain.handle(
     IpcChannels.createClip,
     async (_event, seconds: number): Promise<CreateClipResult> => {
       if (clipping) {
-        return { ok: false, error: "A clip is already in progress." };
+        return { ok: false, error: "Ein Clip wird bereits erstellt." };
       }
       if (!obsConnected) {
-        return { ok: false, error: "OBS WebSocket is not connected." };
+        return { ok: false, error: "OBS-WebSocket ist nicht verbunden." };
       }
       clipping = true;
       try {
@@ -340,11 +507,20 @@ function registerIpc(): void {
   );
 
   ipcMain.handle(
+    IpcChannels.deleteClip,
+    async (_event, id: string): Promise<{ ok: boolean; error?: string }> => {
+      const result = deleteClip(appDataDir, id);
+      if (result.ok) sendClipsChanged();
+      return result;
+    },
+  );
+
+  ipcMain.handle(
     IpcChannels.openClip,
     async (_event, id: string): Promise<{ ok: boolean; error?: string }> => {
       const clip = findClip(appDataDir, id);
-      if (!clip) return { ok: false, error: "Clip not found." };
-      if (!clip.filePath) return { ok: false, error: "No file path." };
+      if (!clip) return { ok: false, error: "Clip nicht gefunden." };
+      if (!clip.filePath) return { ok: false, error: "Kein Dateipfad." };
       const err = await shell.openPath(clip.filePath);
       if (err) return { ok: false, error: err };
       return { ok: true };
@@ -355,7 +531,7 @@ function registerIpc(): void {
     IpcChannels.revealClip,
     async (_event, id: string): Promise<{ ok: boolean; error?: string }> => {
       const clip = findClip(appDataDir, id);
-      if (!clip) return { ok: false, error: "Clip not found." };
+      if (!clip) return { ok: false, error: "Clip nicht gefunden." };
       shell.showItemInFolder(clip.filePath);
       return { ok: true };
     },
@@ -390,6 +566,11 @@ app.whenReady().then(async () => {
   });
 
   config = loadConfig(appDataDir);
+  try {
+    setAppAutostartEnabled(config.AUTOSTART, appDataDir);
+  } catch {
+    // Login-item registry may be locked; settings can retry.
+  }
   registerIpc();
   Menu.setApplicationMenu(null);
   createWindow();
@@ -403,7 +584,15 @@ app.whenReady().then(async () => {
     outputDir: config.CLIP_OUTPUT_DIR,
   });
   sendClipsChanged();
+  await refreshObsProcessRunning();
+  startObsProcessPoll();
+  if (config.AUTOSTART && !obsProcessRunning) {
+    await startObsClipMode();
+  }
   await connectObs();
+  if (config.AUTOSTART) {
+    await ensureReplayBufferStarted();
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -417,6 +606,10 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   markAppQuitting();
   intentionalDisconnect = true;
+  if (obsProcessPoll) {
+    clearInterval(obsProcessPoll);
+    obsProcessPoll = null;
+  }
   destroyTray();
   void folderWatcher?.close();
   void obs.disconnect();

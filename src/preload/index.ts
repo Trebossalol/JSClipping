@@ -38,8 +38,11 @@ const api: ElectronApi = {
   },
   renameClip: (id: string, name: string): Promise<RenameClipResult> =>
     ipcRenderer.invoke(IpcChannels.renameClip, id, name),
+  deleteClip: (id: string) => ipcRenderer.invoke(IpcChannels.deleteClip, id),
   openClip: (id: string) => ipcRenderer.invoke(IpcChannels.openClip, id),
   revealClip: (id: string) => ipcRenderer.invoke(IpcChannels.revealClip, id),
+  startObs: () => ipcRenderer.invoke(IpcChannels.startObs),
+  stopObs: () => ipcRenderer.invoke(IpcChannels.stopObs),
 };
 
 contextBridge.exposeInMainWorld("api", api);

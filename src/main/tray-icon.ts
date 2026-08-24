@@ -49,6 +49,30 @@ function encodePng(width: number, height: number, rgba: Buffer): Buffer {
   ]);
 }
 
+function blendPixel(
+  rgba: Buffer,
+  size: number,
+  x: number,
+  y: number,
+  r: number,
+  g: number,
+  b: number,
+  a: number,
+): void {
+  if (x < 0 || y < 0 || x >= size || y >= size || a <= 0) return;
+  const i = (y * size + x) * 4;
+  const srcA = a / 255;
+  const dstA = (rgba[i + 3] ?? 0) / 255;
+  const outA = srcA + dstA * (1 - srcA);
+  if (outA <= 0) return;
+  const mix = (src: number, dst: number): number =>
+    (src * srcA + dst * dstA * (1 - srcA)) / outA;
+  rgba[i] = mix(r, rgba[i] ?? 0);
+  rgba[i + 1] = mix(g, rgba[i + 1] ?? 0);
+  rgba[i + 2] = mix(b, rgba[i + 2] ?? 0);
+  rgba[i + 3] = Math.round(outA * 255);
+}
+
 function setPixel(
   rgba: Buffer,
   size: number,
@@ -59,12 +83,7 @@ function setPixel(
   b: number,
   a = 255,
 ): void {
-  if (x < 0 || y < 0 || x >= size || y >= size) return;
-  const i = (y * size + x) * 4;
-  rgba[i] = r;
-  rgba[i + 1] = g;
-  rgba[i + 2] = b;
-  rgba[i + 3] = a;
+  blendPixel(rgba, size, x, y, r, g, b, a);
 }
 
 function fillCircle(
@@ -78,16 +97,95 @@ function fillCircle(
   b: number,
   a = 255,
 ): void {
-  const r2 = radius * radius;
-  for (let y = Math.floor(cy - radius); y <= Math.ceil(cy + radius); y++) {
-    for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
-      const dx = x - cx + 0.5;
-      const dy = y - cy + 0.5;
-      if (dx * dx + dy * dy <= r2) {
-        setPixel(rgba, size, x, y, r, g, b, a);
+  const x0 = Math.floor(cx - radius - 1);
+  const x1 = Math.ceil(cx + radius + 1);
+  const y0 = Math.floor(cy - radius - 1);
+  const y1 = Math.ceil(cy + radius + 1);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const dx = x + 0.5 - cx;
+      const dy = y + 0.5 - cy;
+      const d = Math.hypot(dx, dy);
+      const coverage = Math.max(0, Math.min(1, radius + 0.5 - d));
+      if (coverage > 0) {
+        blendPixel(rgba, size, x, y, r, g, b, Math.round(a * coverage));
       }
     }
   }
+}
+
+function strokeCircle(
+  rgba: Buffer,
+  size: number,
+  cx: number,
+  cy: number,
+  radius: number,
+  thickness: number,
+  r: number,
+  g: number,
+  b: number,
+): void {
+  const outer = radius + thickness / 2;
+  const inner = Math.max(0, radius - thickness / 2);
+  const x0 = Math.floor(cx - outer - 1);
+  const x1 = Math.ceil(cx + outer + 1);
+  const y0 = Math.floor(cy - outer - 1);
+  const y1 = Math.ceil(cy + outer + 1);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+      const coverage = Math.min(
+        Math.max(0, Math.min(1, outer + 0.5 - d)),
+        Math.max(0, Math.min(1, d - (inner - 0.5))),
+      );
+      if (coverage > 0) {
+        blendPixel(rgba, size, x, y, r, g, b, Math.round(255 * coverage));
+      }
+    }
+  }
+}
+
+function drawLine(
+  rgba: Buffer,
+  size: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  thickness: number,
+  r: number,
+  g: number,
+  b: number,
+): void {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(len * 2));
+  const radius = thickness / 2;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    fillCircle(rgba, size, x0 + dx * t, y0 + dy * t, radius, r, g, b);
+  }
+}
+
+/** Lucide `scissors` in a 24×24 viewBox, mapped into the icon. */
+function drawScissors(
+  rgba: Buffer,
+  size: number,
+  r: number,
+  g: number,
+  b: number,
+): void {
+  const pad = size * 0.2;
+  const scale = (size - pad * 2) / 24;
+  const map = (n: number): number => pad + n * scale;
+  const stroke = Math.max(1.4, size * 0.075);
+
+  strokeCircle(rgba, size, map(6), map(6), 3 * scale, stroke, r, g, b);
+  strokeCircle(rgba, size, map(6), map(18), 3 * scale, stroke, r, g, b);
+  drawLine(rgba, size, map(8.12), map(8.12), map(12), map(12), stroke, r, g, b);
+  drawLine(rgba, size, map(20), map(4), map(8.12), map(15.88), stroke, r, g, b);
+  drawLine(rgba, size, map(14.8), map(14.8), map(20), map(20), stroke, r, g, b);
 }
 
 const DIGITS: Record<string, number[]> = {
@@ -126,45 +224,97 @@ function drawDigit(
   }
 }
 
-function drawClipGlyph(rgba: Buffer, size: number): void {
-  fillCircle(rgba, size, size / 2, size / 2, size / 2 - 1, 23, 28, 40);
-  fillCircle(rgba, size, size / 2 - 2, size / 2 - 1, size / 4, 91, 140, 255);
-  fillCircle(rgba, size, size / 2 + 4, size / 2 + 3, size / 6, 62, 207, 142);
+function drawBadge(rgba: Buffer, size: number, badgeCount: number): void {
+  if (badgeCount <= 0) return;
+  const label = badgeCount > 9 ? "9+" : String(badgeCount);
+  const badgeR = label.length > 1 ? 9 : 8;
+  const bx = size - badgeR - 1;
+  const by = badgeR;
+  fillCircle(rgba, size, bx, by, badgeR, 220, 50, 70);
+  fillCircle(rgba, size, bx, by, badgeR - 1, 255, 70, 90);
+
+  if (label === "9+") {
+    drawDigit(rgba, size, bx - 5, by - 2, "9", 255, 255, 255);
+    drawDigit(rgba, size, bx - 1, by - 2, "+", 255, 255, 255);
+  } else {
+    drawDigit(rgba, size, bx - 1, by - 2, label, 255, 255, 255);
+  }
+}
+
+function downsample(
+  src: Buffer,
+  srcSize: number,
+  dstSize: number,
+): Buffer {
+  const factor = srcSize / dstSize;
+  const dst = Buffer.alloc(dstSize * dstSize * 4);
+  for (let y = 0; y < dstSize; y++) {
+    for (let x = 0; x < dstSize; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 0;
+      let count = 0;
+      const x0 = Math.floor(x * factor);
+      const y0 = Math.floor(y * factor);
+      const x1 = Math.floor((x + 1) * factor);
+      const y1 = Math.floor((y + 1) * factor);
+      for (let sy = y0; sy < y1; sy++) {
+        for (let sx = x0; sx < x1; sx++) {
+          const i = (sy * srcSize + sx) * 4;
+          r += src[i] ?? 0;
+          g += src[i + 1] ?? 0;
+          b += src[i + 2] ?? 0;
+          a += src[i + 3] ?? 0;
+          count += 1;
+        }
+      }
+      const di = (y * dstSize + x) * 4;
+      dst[di] = Math.round(r / count);
+      dst[di + 1] = Math.round(g / count);
+      dst[di + 2] = Math.round(b / count);
+      dst[di + 3] = Math.round(a / count);
+    }
+  }
+  return dst;
+}
+
+function renderScissorsPng(size: number, badgeCount = 0): Buffer {
+  const scale = size >= 64 ? 2 : 4;
+  const srcSize = size * scale;
+  const rgba = Buffer.alloc(srcSize * srcSize * 4, 0);
+  fillCircle(rgba, srcSize, srcSize / 2, srcSize / 2, srcSize / 2 - scale, 23, 28, 40);
+  drawScissors(rgba, srcSize, 245, 247, 250);
+  const down = downsample(rgba, srcSize, size);
+  drawBadge(down, size, badgeCount);
+  return encodePng(size, size, down);
+}
+
+function fromPng(png: Buffer): NativeImage {
+  return nativeImage.createFromBuffer(png);
 }
 
 /** badgeCount: 0 = no badge, 1–9 = digit, >=10 = "9+" */
-function buildIcon(badgeCount: number): NativeImage {
-  const size = 32;
-  const rgba = Buffer.alloc(size * size * 4, 0);
-  drawClipGlyph(rgba, size);
-
-  if (badgeCount > 0) {
-    const label = badgeCount > 9 ? "9+" : String(badgeCount);
-    const badgeR = label.length > 1 ? 9 : 8;
-    const bx = size - badgeR - 1;
-    const by = badgeR;
-    fillCircle(rgba, size, bx, by, badgeR, 220, 50, 70);
-    fillCircle(rgba, size, bx, by, badgeR - 1, 255, 70, 90);
-
-    if (label === "9+") {
-      drawDigit(rgba, size, bx - 5, by - 2, "9", 255, 255, 255);
-      drawDigit(rgba, size, bx - 1, by - 2, "+", 255, 255, 255);
-    } else {
-      drawDigit(rgba, size, bx - 1, by - 2, label, 255, 255, 255);
-    }
-  }
-
-  return nativeImage.createFromBuffer(encodePng(size, size, rgba));
+function buildTrayIcon(badgeCount: number): NativeImage {
+  return fromPng(renderScissorsPng(32, badgeCount));
 }
 
-const iconCache = new Map<number, NativeImage>();
+const trayCache = new Map<number, NativeImage>();
+let appIcon: NativeImage | null = null;
 
 export function getTrayIcon(unnamedCount: number): NativeImage {
   const key = unnamedCount <= 0 ? 0 : unnamedCount > 9 ? 10 : unnamedCount;
-  let icon = iconCache.get(key);
+  let icon = trayCache.get(key);
   if (!icon) {
-    icon = buildIcon(key === 10 ? 10 : key);
-    iconCache.set(key, icon);
+    icon = buildTrayIcon(key === 10 ? 10 : key);
+    trayCache.set(key, icon);
   }
   return icon;
+}
+
+export function getAppIcon(): NativeImage {
+  if (!appIcon) {
+    appIcon = fromPng(renderScissorsPng(256));
+  }
+  return appIcon;
 }

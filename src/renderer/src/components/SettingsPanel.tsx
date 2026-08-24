@@ -8,12 +8,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldGroup,
   FieldLabel,
@@ -25,9 +21,19 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
-import { ChevronsUpDownIcon, EyeIcon, EyeOffIcon, FolderIcon } from "lucide-react";
+import {
+  CableIcon,
+  EyeIcon,
+  EyeOffIcon,
+  FolderIcon,
+  FolderOutputIcon,
+  PlugIcon,
+  PowerIcon,
+  SaveIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { AppConfigDto } from "@shared/ipc";
+import { Switch } from "@/components/ui/switch";
 
 interface SettingsPanelProps {
   config: AppConfigDto;
@@ -35,18 +41,24 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ config, onSave }: SettingsPanelProps) {
-  const [open, setOpen] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [obsUrl, setObsUrl] = useState(config.OBS_URL);
   const [obsPassword, setObsPassword] = useState(config.OBS_PASSWORD);
   const [outputDir, setOutputDir] = useState(config.CLIP_OUTPUT_DIR);
+  const [autostart, setAutostart] = useState(config.AUTOSTART);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setObsUrl(config.OBS_URL);
     setObsPassword(config.OBS_PASSWORD);
     setOutputDir(config.CLIP_OUTPUT_DIR);
-  }, [config.OBS_URL, config.OBS_PASSWORD, config.CLIP_OUTPUT_DIR]);
+    setAutostart(config.AUTOSTART);
+  }, [
+    config.OBS_URL,
+    config.OBS_PASSWORD,
+    config.CLIP_OUTPUT_DIR,
+    config.AUTOSTART,
+  ]);
 
   async function handleBrowse(): Promise<void> {
     const dir = await window.api.pickOutputDir();
@@ -61,11 +73,13 @@ export function SettingsPanel({ config, onSave }: SettingsPanelProps) {
         OBS_URL: obsUrl.trim(),
         OBS_PASSWORD: obsPassword,
         CLIP_OUTPUT_DIR: outputDir.trim(),
+        AUTOSTART: autostart,
       });
       setObsUrl(saved.OBS_URL);
       setObsPassword(saved.OBS_PASSWORD);
       setOutputDir(saved.CLIP_OUTPUT_DIR);
-      toast.success("Settings saved.");
+      setAutostart(saved.AUTOSTART);
+      toast.success("Einstellungen gespeichert.");
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
       toast.error(text);
@@ -75,96 +89,142 @@ export function SettingsPanel({ config, onSave }: SettingsPanelProps) {
   }
 
   return (
-    <Card>
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="flex flex-col gap-1.5">
-            <CardTitle>Settings</CardTitle>
-            <CardDescription>
-              Shared with Action Ring via %APPDATA%\JSClipping\config.json
-            </CardDescription>
-          </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="icon" type="button">
-              <ChevronsUpDownIcon />
-              <span className="sr-only">Toggle settings</span>
-            </Button>
-          </CollapsibleTrigger>
+    <form className="flex flex-col gap-4" onSubmit={(e) => void handleSubmit(e)}>
+      <div className="flex flex-col gap-1">
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          <PlugIcon className="size-3.5" />
+          Verbindung
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Gemeinsam mit Action Ring über %APPDATA%\JSClipping\config.json
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <CableIcon className="size-4" />
+            obs-websocket
+          </CardTitle>
+          <CardDescription>OBS WebSocket</CardDescription>
         </CardHeader>
-        <CollapsibleContent>
-          <CardContent>
-            <form onSubmit={(e) => void handleSubmit(e)}>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="obs-url">OBS WebSocket URL</FieldLabel>
-                  <Input
-                    id="obs-url"
-                    type="url"
-                    required
-                    autoComplete="off"
-                    value={obsUrl}
-                    onChange={(e) => setObsUrl(e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="obs-password">OBS password</FieldLabel>
-                  <InputGroup>
-                    <InputGroupInput
-                      id="obs-password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      autoComplete="off"
-                      value={obsPassword}
-                      onChange={(e) => setObsPassword(e.target.value)}
-                    />
-                    <InputGroupAddon align="inline-end">
-                      <InputGroupButton
-                        type="button"
-                        size="icon-xs"
-                        onClick={() => setShowPassword((s) => !s)}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                      </InputGroupButton>
-                    </InputGroupAddon>
-                  </InputGroup>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="clip-output-dir">Clip output folder</FieldLabel>
-                  <InputGroup>
-                    <InputGroupInput
-                      id="clip-output-dir"
-                      type="text"
-                      required
-                      autoComplete="off"
-                      value={outputDir}
-                      onChange={(e) => setOutputDir(e.target.value)}
-                    />
-                    <InputGroupAddon align="inline-end">
-                      <InputGroupButton
-                        type="button"
-                        size="xs"
-                        onClick={() => void handleBrowse()}
-                      >
-                        <FolderIcon data-icon="inline-start" />
-                        Browse
-                      </InputGroupButton>
-                    </InputGroupAddon>
-                  </InputGroup>
-                  <FieldDescription>
-                    New clips are stored under YYYY\MM inside this folder.
-                  </FieldDescription>
-                </Field>
-                <Field>
-                  <Button type="submit" disabled={saving}>
-                    Save settings
-                  </Button>
-                </Field>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
-    </Card>
+        <CardContent>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="obs-url">URL</FieldLabel>
+              <Input
+                id="obs-url"
+                type="url"
+                required
+                autoComplete="off"
+                value={obsUrl}
+                onChange={(e) => setObsUrl(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="obs-password">Passwort</FieldLabel>
+              <InputGroup>
+                <InputGroupInput
+                  id="obs-password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="off"
+                  value={obsPassword}
+                  onChange={(e) => setObsPassword(e.target.value)}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    type="button"
+                    size="icon-xs"
+                    onClick={() => setShowPassword((s) => !s)}
+                    aria-label={showPassword ? "Passwort verbergen" : "Passwort anzeigen"}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <FolderOutputIcon className="size-4" />
+            Ausgabe
+          </CardTitle>
+          <CardDescription>Unterordner JJJJ\MM</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="clip-output-dir">Clip-Ausgabeordner</FieldLabel>
+              <InputGroup>
+                <InputGroupInput
+                  id="clip-output-dir"
+                  type="text"
+                  required
+                  autoComplete="off"
+                  value={outputDir}
+                  onChange={(e) => setOutputDir(e.target.value)}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    type="button"
+                    size="xs"
+                    onClick={() => void handleBrowse()}
+                  >
+                    <FolderIcon data-icon="inline-start" />
+                    Durchsuchen
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+              <FieldDescription>
+                Neue Clips landen in Jahr/Monat-Ordnern. Umbenennen in der
+                Bibliothek benennt auch die Datei um.
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <PowerIcon className="size-4" />
+            Autostart
+          </CardTitle>
+          <CardDescription>Beim Windows-Anmelden</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FieldGroup>
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldLabel htmlFor="autostart">
+                  JSClipping und OBS im Clip-Modus
+                </FieldLabel>
+                <FieldDescription>
+                  Startet JSClipping und OBS mit Wiederholungspuffer, minimiert
+                  in den Infobereich.
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="autostart"
+                checked={autostart}
+                onCheckedChange={setAutostart}
+              />
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </Card>
+
+      <div>
+        <Button type="submit" disabled={saving}>
+          <SaveIcon data-icon="inline-start" />
+          Einstellungen speichern
+        </Button>
+      </div>
+    </form>
   );
 }

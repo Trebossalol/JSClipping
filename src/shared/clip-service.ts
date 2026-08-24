@@ -108,7 +108,7 @@ export async function saveAndTrimClip(
   }
 
   if (!savedPath) {
-    throw new Error("Could not determine saved replay buffer file path.");
+    throw new Error("Der Speicherpfad der Wiederholungspuffer-Datei konnte nicht ermittelt werden.");
   }
 
   log?.info(`Replay file: ${savedPath} (${fileSize(savedPath)} bytes)`);

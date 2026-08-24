@@ -7,6 +7,7 @@ export const ConfigSchema = z.object({
   OBS_URL: z.url(),
   OBS_PASSWORD: z.string().min(1),
   CLIP_OUTPUT_DIR: z.string().min(1),
+  AUTOSTART: z.boolean().default(false),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -15,6 +16,7 @@ const DEFAULTS: AppConfig = {
   OBS_URL: "ws://localhost:4455",
   OBS_PASSWORD: "CHANGE_ME",
   CLIP_OUTPUT_DIR: "C:\\Clips",
+  AUTOSTART: false,
 };
 
 let cachedAppDataDir: string | undefined;
@@ -61,6 +63,7 @@ function tryLoadEnvFile(): AppConfig | null {
       OBS_URL: parsed.OBS_URL,
       OBS_PASSWORD: parsed.OBS_PASSWORD,
       CLIP_OUTPUT_DIR: parsed.CLIP_OUTPUT_DIR,
+      AUTOSTART: parsed.AUTOSTART === "true",
     };
     const result = ConfigSchema.safeParse(candidate);
     return result.success ? result.data : null;
@@ -76,6 +79,9 @@ export function loadConfig(appDataDir?: string): AppConfig {
 
   if (fs.existsSync(file)) {
     const raw = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      return ConfigSchema.parse({ ...DEFAULTS, ...raw });
+    }
     return ConfigSchema.parse(raw);
   }
 

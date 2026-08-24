@@ -269,12 +269,12 @@ export function renameClip(
 ): { ok: true; clip: ClipRecord } | { ok: false; error: string } {
   const clips = readStore(appDataDir);
   const index = clips.findIndex((c) => c.id === id);
-  if (index < 0) return { ok: false, error: "Clip not found." };
+  if (index < 0) return { ok: false, error: "Clip nicht gefunden." };
 
   const clip = clips[index]!;
   const stem = sanitizeFileStem(newName);
   if (!stem) {
-    return { ok: false, error: "Name is empty after removing invalid characters." };
+    return { ok: false, error: "Der Name ist nach dem Entfernen ungültiger Zeichen leer." };
   }
 
   if (!fs.existsSync(clip.filePath)) {
@@ -304,7 +304,7 @@ export function renameClip(
     fs.renameSync(clip.filePath, dest);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: `Could not rename file: ${message}` };
+    return { ok: false, error: `Datei konnte nicht umbenannt werden: ${message}` };
   }
 
   clip.filePath = dest;
@@ -313,6 +313,43 @@ export function renameClip(
   clip.missing = false;
   writeStore(appDataDir, clips);
   return { ok: true, clip: { ...clip } };
+}
+
+export function deleteClip(
+  appDataDir: string,
+  id: string,
+): { ok: true } | { ok: false; error: string } {
+  const clips = readStore(appDataDir);
+  const index = clips.findIndex((c) => c.id === id);
+  if (index < 0) return { ok: false, error: "Clip nicht gefunden." };
+
+  const clip = clips[index]!;
+
+  if (clip.filePath && fs.existsSync(clip.filePath)) {
+    ignorePathTemporarily(clip.filePath);
+    try {
+      fs.unlinkSync(clip.filePath);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        error: `Datei konnte nicht gelöscht werden: ${message}`,
+      };
+    }
+  }
+
+  const thumb = path.join(thumbnailsDir(appDataDir), `${clip.id}.jpg`);
+  if (fs.existsSync(thumb)) {
+    try {
+      fs.unlinkSync(thumb);
+    } catch {
+      // Thumbnail cleanup is best-effort.
+    }
+  }
+
+  clips.splice(index, 1);
+  writeStore(appDataDir, clips);
+  return { ok: true };
 }
 
 export function findClip(appDataDir: string, id: string): ClipRecord | undefined {
