@@ -4,6 +4,8 @@
 
 JSClipping talks to OBS over WebSocket, dumps the Replay Buffer, then trims the last *N* seconds with FFmpeg — stream-copy, no re-encode, usually done in under a second.
 
+The **Electron companion** shows OBS connection status, lets you edit settings, create clips from the UI, and browse recent clips with thumbnails and editable titles.
+
 ```
 ┌─────────────┐     SaveReplayBuffer      ┌─────┐
 │ Action Ring │ ─────────────────────────▶│ OBS │
@@ -14,7 +16,10 @@ JSClipping talks to OBS over WebSocket, dumps the Replay Buffer, then trims the 
        │                                       │
        │              ffmpeg -c copy (last N s)│
        ▼                                       ▼
-  clip.bat 30                     Replay …_30s.mp4
+  clip.bat 30               CLIP_OUTPUT_DIR\YYYY\MM\…_30s.mp4
+       │
+       ▼
+  Electron Recent Clips (watcher)
 ```
 
 ---
@@ -29,7 +34,7 @@ JSClipping talks to OBS over WebSocket, dumps the Replay Buffer, then trims the 
 | 10 minutes | [`scripts/clip.bat`](scripts/clip.bat) `600` | last **10 min** (full buffer) |
 | Autostart OBS | [`scripts/autostart.bat`](scripts/autostart.bat) | launches OBS with Replay Buffer on, tray-minimized |
 
-Clips land in `CLIP_OUTPUT_DIR` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Each run also writes a log under `logs/`.
+Clips land in `CLIP_OUTPUT_DIR\YYYY\MM\` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Renaming a clip in Electron also renames the file. Each CLI run also writes a log under `logs/`.
 
 ---
 
@@ -39,13 +44,11 @@ Clips land in `CLIP_OUTPUT_DIR` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. 
 - [Node.js](https://nodejs.org/) 18+ (LTS is fine)
 - [OBS Studio](https://obsproject.com/) 28+ (built-in WebSocket v5)
 - [FFmpeg](https://www.gyan.dev/ffmpeg/builds/) — both `ffmpeg` **and** `ffprobe` must be on your `PATH`
-- A Logitech mouse/keyboard with an **Action Ring** (MX Master, MX Keys, etc.) and [Logitech Options+](https://www.logitech.com/software/logi-options-plus.html)
+- A Logitech mouse/keyboard with an **Action Ring** (MX Master, MX Keys, etc.) and [Logitech Options+](https://www.logitech.com/software/logi-options-plus.html) (optional if you only use the Electron buttons)
 
 ---
 
 ## Setup
-
-Do these once. After that, clipping is just an Action Ring tap.
 
 ### 1. Install Node.js
 
@@ -62,8 +65,6 @@ npm -v
 
 Without this you will see `spawn ffprobe ENOENT` and the clip will fail after OBS saves the replay.
 
-The easy way on Windows is winget (adds `ffmpeg` and `ffprobe` to your `PATH`):
-
 ```powershell
 winget install "FFmpeg (Essentials Build)"
 ```
@@ -75,18 +76,6 @@ ffmpeg -version
 ffprobe -version
 ```
 
-Both commands must print a version. If they are “not recognized”, the PATH change has not taken effect yet.
-
-If you prefer a zip instead:
-
-1. Download an **essentials** build from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) (`ffmpeg-release-essentials.zip`).
-2. Extract it somewhere stable, e.g. `C:\ffmpeg`.
-3. Add the `bin` folder to your user `PATH`:
-   - Win + S → **Edit environment variables for your account**
-   - Select **Path** → **Edit** → **New**
-   - Add `C:\ffmpeg\bin` (or wherever you extracted it)
-4. Close every terminal / Cursor window, open a new one, and confirm `ffmpeg -version` / `ffprobe -version` as above.
-
 ### 3. Clone and install the project
 
 ```powershell
@@ -95,22 +84,25 @@ cd JSClipping
 npm install
 ```
 
-Or, if you already have the folder:
+### 4. Configure settings
+
+Settings live in **`%APPDATA%\JSClipping\config.json`** (shared by the Electron app and Action Ring / `clip.bat`).
+
+**Easiest:** start the app and fill in Settings:
 
 ```powershell
-cd C:\Users\<you>\Documents\repos\JSClipping
-npm install
+npm run dev
 ```
 
-### 4. Configure environment
+| Field | Meaning |
+|---|---|
+| OBS WebSocket URL | Default `ws://localhost:4455` |
+| OBS password | From **OBS → Tools → WebSocket Server Settings** |
+| Clip output folder | Where trimmed clips are written (`YYYY\MM` subfolders are created automatically) |
 
-Copy the example env file and edit it:
+**Migration:** if you still have a repo `.env` from older versions, the first launch copies those values into AppData and then uses the JSON file going forward.
 
-```powershell
-copy .env.example .env
-```
-
-Then open `.env`:
+Optional one-time `.env` (migration only):
 
 ```env
 OBS_URL=ws://localhost:4455
@@ -118,22 +110,14 @@ OBS_PASSWORD=CHANGE_ME
 CLIP_OUTPUT_DIR=C:\\Clips
 ```
 
-| Variable | Meaning |
-|---|---|
-| `OBS_URL` | OBS WebSocket URL. Default port is `4455`. |
-| `OBS_PASSWORD` | Password from **OBS → Tools → WebSocket Server Settings**. |
-| `CLIP_OUTPUT_DIR` | Where trimmed clips are written. Use `\\` for backslashes on Windows. |
-
-`.env` is gitignored. Never commit the password.
-
 ### 5. Enable the OBS WebSocket server
 
 1. Open OBS.
 2. **Tools → WebSocket Server Settings**.
 3. Enable **Enable WebSocket server**.
-4. Port: `4455` (or change `OBS_URL` to match).
+4. Port: `4455` (or change the URL to match).
 5. Enable **Enable authentication**.
-6. Click **Show Connect Info**, copy the password into `.env` as `OBS_PASSWORD`.
+6. Click **Show Connect Info**, copy the password into the Electron Settings panel.
 7. Click **Apply**.
 
 ### 6. Turn on the Replay Buffer
@@ -145,26 +129,30 @@ JSClipping does **not** start the buffer (except via `autostart.bat`). It only *
 3. Open the **Replay Buffer** tab.
 4. Enable **Replay Buffer**.
 5. Set **Maximum Replay Time** to at least **600 seconds** (10 minutes) if you want the 10-minute Action Ring slot to work.
-6. Confirm **Settings → Output → Recording** (or Replay Buffer) writes into a folder you can read — the script polls the path OBS reports.
-7. Click **Start Replay Buffer** (or use `scripts/autostart.bat`).
-
-The Replay Buffer must be **running** when you clip. If it is stopped, `SaveReplayBuffer` fails.
+6. Click **Start Replay Buffer** (or use `scripts/autostart.bat`).
 
 ### 7. Point autostart at your OBS install (optional)
 
-Open [`scripts/autostart.bat`](scripts/autostart.bat) and fix the paths if OBS is not in the default location:
+Open [`scripts/autostart.bat`](scripts/autostart.bat) and fix the paths if OBS is not in the default location.
 
-```bat
-set OBS_PATH="C:\Program Files\obs-studio\bin\64bit\obs64.exe"
-set OBS_DIR="C:\Program Files\obs-studio\bin\64bit"
+---
+
+## Electron companion
+
+```powershell
+npm run dev
 ```
 
-It launches OBS with `--startreplaybuffer --minimize-to-tray`.
+The window shows:
 
-To run it at login:
+- **OBS connected / disconnected** status (auto-reconnect)
+- **Clip buttons** (30s / 1m / 5m / 10m)
+- **Settings** editor (writes `%APPDATA%\JSClipping\config.json`)
+- **Recent clips** grid with thumbnails — click to open in your system player; edit the title to rename the file on disk
 
-1. Win + R → `shell:startup`
-2. Create a shortcut to `scripts\autostart.bat`
+Closing the window **keeps the app in the Windows tray**. Click the tray icon (or Open) to show the window again; use **Quit** in the tray menu to exit. The tray icon shows a red badge with the count of clips that still need a title; renaming a clip clears it from that count.
+
+Action Ring clips still go through `clip.bat`. The Electron app watches the output folder and adds new files to Recent Clips automatically.
 
 ---
 
@@ -172,16 +160,11 @@ To run it at login:
 
 Each `.bat` is a self-contained launcher. Link one file per Action Ring segment.
 
-### Add the clip actions
-
 1. Open **Logitech Options+**.
-2. Select your device (MX Master, MX Keys, …).
-3. Click the **Action Ring** / gesture button in the device diagram.
-4. Choose **Customize Action Ring** (or **Edit Action Ring**).
-5. Click an empty (or existing) segment.
-6. Pick **Open application** / **Open a file** / **Run**.
-7. Browse to `...\JSClipping\scripts\clip.bat` (use the real path on your machine).
-8. Set the argument to the clip length in seconds:
+2. Select your device → **Action Ring** → customize a segment.
+3. Pick **Open application** / **Open a file** / **Run**.
+4. Browse to `...\JSClipping\scripts\clip.bat`.
+5. Set the argument:
 
 | Segment label | File | Argument |
 |---|---|---|
@@ -190,46 +173,22 @@ Each `.bat` is a self-contained launcher. Link one file per Action Ring segment.
 | Clip 5m | `...\JSClipping\scripts\clip.bat` | `300` |
 | Clip 10m | `...\JSClipping\scripts\clip.bat` | `600` |
 
-9. Give the segment a short name (`30s`, `1m`, `5m`, `10m`) so you can hit it without looking.
-10. Repeat for the other lengths, changing only the seconds argument.
-11. Optional: add **Autostart OBS** pointing at `scripts\autostart.bat`.
-
-### Tips that actually matter
-
-- Point Options+ at the **`.bat`**, not at `node.exe`. The batch files `cd` into the repo root so `.env` and `src\` resolve correctly.
-- Do **not** tick “run as administrator” unless OBS itself is elevated — a mismatch blocks the WebSocket connection.
-- After changing your user `PATH` (FFmpeg), **log out or reboot** so Options+ inherits the new PATH. Action Ring launches do not see a PATH you only added to an already-open terminal.
-- Keep a test segment on 30s first. Check `logs\` if nothing appears in the output folder.
-
-### How a tap works
-
-1. You press the Action Ring and choose a length.
-2. The `.bat` runs `node src\obs_replay_clip.js <seconds>`.
-3. The script connects to OBS, calls `SaveReplayBuffer`, then polls `GetLastReplayBufferReplay` until the file exists.
-4. `ffprobe` reads duration; `ffmpeg -c copy` writes `…_<seconds>s.mp4` into `CLIP_OUTPUT_DIR`.
-5. The full replay file OBS just saved is left in place. The trimmed clip is the extra file.
+Point Options+ at the **`.bat`**, not at `node.exe`. The batch file `cd`s into the repo root and runs the local `tsx` binary so TypeScript CLI code works without a global install.
 
 ---
 
-## Manual test (before wiring the mouse)
+## Manual CLI test
 
 With OBS open and the Replay Buffer **running**:
 
 ```powershell
 cd C:\Users\<you>\Documents\repos\JSClipping
-node src\obs_replay_clip.js 30
+npm run clip -- 30
 ```
 
-Success looks like:
+Or `scripts\clip.bat 30`. Same thing.
 
-```
-Connected to OBS WebSocket
-SaveReplayBuffer requested
-Replay file: G:\OBS Aufnahmen\Replay 2026-08-22 21-00-23.mp4 (...)
-Saved 30s clip: G:\OBS Aufnahmen\Replay 2026-08-22 21-00-23_30s.mp4
-```
-
-Or run `scripts\clip.bat 30`. Same thing.
+Clips are written under `CLIP_OUTPUT_DIR\YYYY\MM\`.
 
 ---
 
@@ -237,18 +196,30 @@ Or run `scripts\clip.bat 30`. Same thing.
 
 ```
 JSClipping/
-├── .env                 # local secrets (gitignored)
-├── .env.example         # template
 ├── package.json
-├── logs/                # one log file per clip run
+├── electron.vite.config.ts
 ├── scripts/
-│   ├── autostart.bat    # OBS + replay buffer, minimized
-│   └── clip.bat         # clip.bat 30 | 60 | 300 | 600
+│   ├── autostart.bat
+│   └── clip.bat              # clip.bat 30 | 60 | 300 | 600
+├── logs/                     # one log file per CLI clip run
 └── src/
-    ├── obs_replay_clip.js
-    ├── env.js
-    └── log.js
+    ├── cli/
+    │   └── obs_replay_clip.ts
+    ├── shared/
+    │   ├── config.ts         # AppData config.json
+    │   ├── clip-service.ts
+    │   ├── clips-store.ts
+    │   └── …
+    ├── main/                 # Electron main process
+    ├── preload/
+    └── renderer/             # Electron UI (React + shadcn/ui)
 ```
+
+App data (`%APPDATA%\JSClipping\`):
+
+- `config.json` — OBS URL, password, output folder
+- `clips.json` — recent-clips index
+- `thumbnails\` — JPEG previews
 
 ---
 
@@ -256,12 +227,11 @@ JSClipping/
 
 | Symptom | Fix |
 |---|---|
-| `spawn ffprobe ENOENT` / `spawn ffmpeg ENOENT` | FFmpeg is not on `PATH` for that process. Install it, add `bin` to user PATH, **reboot**, then retry from Action Ring. |
-| `Could not connect to OBS WebSocket` | OBS is closed, WebSocket is off, wrong `OBS_PASSWORD`, or wrong port. Recheck **Tools → WebSocket Server Settings**. |
-| `Could not determine saved replay buffer file path` | Replay Buffer is not running, or OBS has not flushed the file within ~10s. Start the buffer; check OBS’s replay output path. |
-| Clip is shorter than requested | Buffer has not been running that long, or **Maximum Replay Time** is smaller than the segment you pressed. |
-| Action Ring does nothing / flash of a console | Open the newest file in `logs\`. That is the real error. If there is no new log, Options+ is not launching the `.bat` (wrong path, or the file moved). |
-| Password / URL errors at startup | `.env` is missing or empty. Copy `.env.example` and fill `OBS_PASSWORD`. |
+| `spawn ffprobe ENOENT` / `spawn ffmpeg ENOENT` | FFmpeg is not on `PATH`. Install it, reboot, retry. |
+| `Could not connect to OBS WebSocket` / red status pill | OBS is closed, WebSocket is off, wrong password/port. Recheck **Tools → WebSocket Server Settings** and Electron Settings. |
+| `Could not determine saved replay buffer file path` | Replay Buffer is not running, or OBS has not flushed the file within ~10s. |
+| Action Ring does nothing | Open the newest file in `logs\`. Confirm `node_modules\.bin\tsx.cmd` exists (`npm install`). |
+| Settings / clips not shared with CLI | Both must use `%APPDATA%\JSClipping\`. Do not keep editing a stale `.env` after migration. |
 
 ---
 

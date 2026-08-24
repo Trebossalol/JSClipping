@@ -8,4 +8,8 @@ if "%~1"=="" (
 )
 
 cd /d "%~dp0.."
-node "src\obs_replay_clip.js" %~1
+if not exist "node_modules\.bin\tsx.cmd" (
+  echo Missing local tsx. Run: npm install
+  exit /b 1
+)
+call "node_modules\.bin\tsx.cmd" "src\cli\obs_replay_clip.ts" %~1

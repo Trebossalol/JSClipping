@@ -4,25 +4,25 @@ overview: Add a TypeScript Electron companion that shows OBS WebSocket status, e
 todos:
   - id: ts-setup
     content: "Add TypeScript + electron-vite: tsconfig, electron.vite.config.ts, convert existing JS modules to TS"
-    status: in_progress
+    status: completed
   - id: shared-config
     content: "Add src/shared/config.ts: AppData JSON, Zod validation, migrate from .env; point CLI at it"
-    status: pending
+    status: completed
   - id: clip-service
     content: Extract saveAndTrimClip; write into CLIP_OUTPUT_DIR/YYYY/MM/; keep CLI as a thin TS wrapper
-    status: pending
+    status: completed
   - id: clips-store
     content: Add typed clips.json store, ffmpeg thumbnails, and title rename that also renames the file (sanitize + collisions)
-    status: pending
+    status: completed
   - id: electron-main
     content: "Electron main (TS): window, OBS connection, recursive YYYY/MM watcher that ignores self-renames, typed IPC"
-    status: pending
+    status: completed
   - id: electron-ui
     content: "Renderer (TS): OBS status, settings form, clip buttons, recent-clips grid with names and thumbnails"
-    status: pending
+    status: completed
   - id: docs-verify
     content: package.json scripts, clip.bat via local tsx, README, then verify the window flows
-    status: pending
+    status: completed
 isProject: false
 ---
 
