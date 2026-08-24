@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import { APP_NAME, getRepoRoot } from "../shared/paths.js";
+import { APP_NAME, getRepoRoot, isPackagedApp } from "../shared/paths.js";
 
 const LOGIN_ENV = "JSCLIPPING_STARTED_AT_LOGIN";
+export const LOGIN_FLAG = "--started-at-login";
 
 function launcherVbsPath(appDataDir: string): string {
   return path.join(appDataDir, "start-at-login.vbs");
@@ -28,8 +29,21 @@ function writeLoginLauncher(appDataDir: string): string {
   return vbsPath;
 }
 
+function removeLoginLauncher(appDataDir: string): void {
+  const vbsPath = launcherVbsPath(appDataDir);
+  if (fs.existsSync(vbsPath)) {
+    fs.unlinkSync(vbsPath);
+  }
+}
+
 export function startedAtLogin(): boolean {
-  return process.env[LOGIN_ENV] === "1";
+  if (process.argv.includes(LOGIN_FLAG)) return true;
+  if (process.env[LOGIN_ENV] === "1") return true;
+  try {
+    return app.getLoginItemSettings().wasOpenedAtLogin === true;
+  } catch {
+    return false;
+  }
 }
 
 /** Register or remove JSClipping (+ OBS clip mode) from Windows logon. */
@@ -39,29 +53,36 @@ export function setAppAutostartEnabled(
 ): void {
   if (process.platform !== "win32") return;
 
-  const vbsPath = launcherVbsPath(appDataDir);
-  const wscript = path.join(
-    process.env.SystemRoot ?? "C:\\Windows",
-    "System32",
-    "wscript.exe",
-  );
+  if (!enabled) {
+    app.setLoginItemSettings({
+      openAtLogin: false,
+      name: APP_NAME,
+    });
+    removeLoginLauncher(appDataDir);
+    return;
+  }
 
-  if (enabled) {
-    writeLoginLauncher(appDataDir);
+  if (isPackagedApp()) {
+    removeLoginLauncher(appDataDir);
     app.setLoginItemSettings({
       openAtLogin: true,
-      path: wscript,
-      args: [`"${vbsPath}"`],
+      path: app.getPath("exe"),
+      args: [LOGIN_FLAG],
       name: APP_NAME,
     });
     return;
   }
 
+  const vbsPath = writeLoginLauncher(appDataDir);
+  const wscript = path.join(
+    process.env.SystemRoot ?? "C:\\Windows",
+    "System32",
+    "wscript.exe",
+  );
   app.setLoginItemSettings({
-    openAtLogin: false,
+    openAtLogin: true,
+    path: wscript,
+    args: [`"${vbsPath}"`],
     name: APP_NAME,
   });
-  if (fs.existsSync(vbsPath)) {
-    fs.unlinkSync(vbsPath);
-  }
 }

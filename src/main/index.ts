@@ -1,6 +1,7 @@
-import fs from "node:fs";
+import fs, { createReadStream } from "node:fs";
 import { execFile, spawn } from "node:child_process";
-import { join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
+import { Readable } from "node:stream";
 import { promisify } from "node:util";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { watch, type FSWatcher } from "chokidar";
@@ -23,11 +24,14 @@ import {
   type AppConfig,
 } from "../shared/config.js";
 import {
+  cutClipToNewFile,
   deleteClip,
   findClip,
+  ignorePathTemporarily,
   importClipFromFile,
   isIgnoredPath,
   listClips,
+  removeClipByFilePath,
   renameClip,
   scanAndImportExisting,
   thumbnailsDir,
@@ -38,10 +42,24 @@ import {
   type AppConfigDto,
   type ClipRecord,
   type CreateClipResult,
+  type CutClipResult,
+  type CutRange,
   type ObsStatus,
   type RenameClipResult,
+  type StorageInfoResult,
 } from "../shared/ipc.js";
-import { isVideoFile, APP_NAME, getRepoRoot } from "../shared/paths.js";
+import { getStorageInfo } from "../shared/storage.js";
+import { createRunLog } from "../shared/log.js";
+import {
+  APP_NAME,
+  getAutostartBatPath,
+  getRepoRoot,
+  isPackagedApp,
+  isVideoFile,
+  parseClipSecondsArg,
+  resolveObsExecutable,
+  validateClipSeconds,
+} from "../shared/paths.js";
 import {
   createAppTray,
   destroyTray,
@@ -63,43 +81,125 @@ const preloadPath = fileURLToPath(
   new URL("../preload/index.mjs", import.meta.url),
 );
 
+const mediaPrivileges = {
+  standard: true,
+  secure: true,
+  supportFetchAPI: true,
+  bypassCSP: true,
+  stream: true,
+} as const;
+
 protocol.registerSchemesAsPrivileged([
-  {
-    scheme: "thumb",
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      bypassCSP: true,
-      stream: true,
-    },
-  },
+  { scheme: "thumb", privileges: { ...mediaPrivileges } },
+  { scheme: "media", privileges: { ...mediaPrivileges } },
 ]);
 
 app.setName(APP_NAME);
+app.setAppUserModelId("com.jsclipping.app");
 
 let mainWindow: BrowserWindow | null = null;
+let cutterWindow: BrowserWindow | null = null;
+let cutterClipId: string | null = null;
 let appDataDir = "";
 let config: AppConfig;
 let obs = new OBSWebSocket();
 let obsConnected = false;
 let obsError: string | undefined;
 let replayBufferActive: boolean | null = null;
+let replayMaxSeconds: number | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempt = 0;
 let intentionalDisconnect = false;
 let folderWatcher: FSWatcher | null = null;
 let clipping = false;
+let cutting = false;
 let obsProcessRunning = false;
 let obsProcessPoll: NodeJS.Timeout | null = null;
+let pendingClipSeconds: number | null = parseClipSecondsArg(process.argv);
+let appReadyForClip = false;
 
-function withThumbUrls(clips: ClipRecord[]): ClipRecord[] {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForObsConnected(timeoutMs = 30_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (obsConnected) return true;
+    await sleep(250);
+  }
+  return obsConnected;
+}
+
+function withClipUrls(clips: ClipRecord[]): ClipRecord[] {
   return clips.map((clip) => ({
     ...clip,
     thumbnailPath: clip.thumbnailPath
       ? `thumb://clip/${clip.id}.jpg`
       : null,
+    mediaUrl: `media://clip/${clip.id}`,
   }));
+}
+
+function videoMime(filePath: string): string {
+  switch (extname(filePath).toLowerCase()) {
+    case ".webm":
+      return "video/webm";
+    case ".mkv":
+      return "video/x-matroska";
+    case ".mov":
+      return "video/quicktime";
+    case ".m4v":
+      return "video/x-m4v";
+    default:
+      return "video/mp4";
+  }
+}
+
+function serveMediaFile(filePath: string, request: Request): Response {
+  const { size } = fs.statSync(filePath);
+  const type = videoMime(filePath);
+  const rangeHeader = request.headers.get("range");
+  let start = 0;
+  let end = size - 1;
+  let status = 200;
+
+  if (rangeHeader) {
+    const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+    if (!match) {
+      return new Response("Invalid Range", { status: 416 });
+    }
+    start = match[1] ? Number(match[1]) : 0;
+    end = match[2] ? Number(match[2]) : size - 1;
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      start < 0 ||
+      start >= size ||
+      start > end
+    ) {
+      return new Response("Range Not Satisfiable", {
+        status: 416,
+        headers: { "Content-Range": `bytes */${size}` },
+      });
+    }
+    end = Math.min(end, size - 1);
+    status = 206;
+  }
+
+  const stream = createReadStream(filePath, { start, end });
+  const headers: Record<string, string> = {
+    "Content-Type": type,
+    "Content-Length": String(end - start + 1),
+    "Accept-Ranges": "bytes",
+  };
+  if (status === 206) {
+    headers["Content-Range"] = `bytes ${start}-${end}/${size}`;
+  }
+  return new Response(Readable.toWeb(stream) as ReadableStream, {
+    status,
+    headers,
+  });
 }
 
 function currentObsStatus(): ObsStatus {
@@ -108,7 +208,17 @@ function currentObsStatus(): ObsStatus {
     running: obsConnected || obsProcessRunning,
     error: obsError,
     replayBufferActive: obsConnected ? replayBufferActive : false,
+    replayMaxSeconds: obsConnected ? replayMaxSeconds : null,
   };
+}
+
+function parseProfileSeconds(value: string | undefined | null): number | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
 }
 
 async function isObsProcessRunning(): Promise<boolean> {
@@ -149,38 +259,66 @@ async function killObsProcess(): Promise<void> {
   }
 }
 
+function spawnDetached(command: string, args: string[], cwd: string): void {
+  const child = spawn(command, args, {
+    cwd,
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  child.unref();
+}
+
+function markObsLaunchRequested(): void {
+  obsProcessRunning = true;
+  intentionalDisconnect = false;
+  reconnectAttempt = 0;
+  sendObsStatus();
+  if (!obsConnected) scheduleReconnect();
+}
+
 async function startObsClipMode(): Promise<{ ok: boolean; error?: string }> {
-  const bat = join(getRepoRoot(), "scripts", "autostart.bat");
-  if (!fs.existsSync(bat)) {
-    return {
-      ok: false,
-      error: `autostart.bat nicht gefunden: ${bat}`,
-    };
+  const exe = resolveObsExecutable();
+  if (exe) {
+    try {
+      spawnDetached(exe, ["--startreplaybuffer", "--minimize-to-tray"], dirname(exe));
+      markObsLaunchRequested();
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: message };
+    }
   }
-  try {
-    const child = spawn("cmd.exe", ["/d", "/c", bat], {
-      cwd: join(getRepoRoot(), "scripts"),
-      detached: true,
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    child.unref();
-    obsProcessRunning = true;
-    intentionalDisconnect = false;
-    reconnectAttempt = 0;
-    sendObsStatus();
-    if (!obsConnected) scheduleReconnect();
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message };
+
+  if (!isPackagedApp()) {
+    const bat = getAutostartBatPath();
+    if (bat) {
+      try {
+        spawnDetached("cmd.exe", ["/d", "/c", bat], join(getRepoRoot(), "scripts"));
+        markObsLaunchRequested();
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    }
   }
+
+  return {
+    ok: false,
+    error:
+      "OBS Studio wurde nicht gefunden. Installiere OBS unter dem Standardpfad oder setze die Umgebungsvariable OBS_PATH.",
+  };
 }
 
 function startObsProcessPoll(): void {
   if (obsProcessPoll) return;
   obsProcessPoll = setInterval(() => {
     void refreshObsProcessRunning();
+    if (!obsConnected) return;
+    void refreshReplayMaxSeconds().then((changed) => {
+      if (changed) sendObsStatus();
+    });
   }, 2000);
 }
 
@@ -201,6 +339,34 @@ async function refreshReplayBuffer(): Promise<void> {
   }
 }
 
+async function refreshReplayMaxSeconds(): Promise<boolean> {
+  if (!obsConnected) {
+    const changed = replayMaxSeconds !== null;
+    replayMaxSeconds = null;
+    return changed;
+  }
+  try {
+    const modeRes = await obs.call("GetProfileParameter", {
+      parameterCategory: "Output",
+      parameterName: "Mode",
+    });
+    const category =
+      modeRes.parameterValue === "Advanced" ? "AdvOut" : "SimpleOutput";
+    const timeRes = await obs.call("GetProfileParameter", {
+      parameterCategory: category,
+      parameterName: "RecRBTime",
+    });
+    const next =
+      parseProfileSeconds(timeRes.parameterValue) ??
+      parseProfileSeconds(timeRes.defaultParameterValue);
+    const changed = replayMaxSeconds !== next;
+    replayMaxSeconds = next;
+    return changed;
+  } catch {
+    return false;
+  }
+}
+
 async function ensureReplayBufferStarted(): Promise<void> {
   if (!obsConnected) return;
   await refreshReplayBuffer();
@@ -217,7 +383,7 @@ async function ensureReplayBufferStarted(): Promise<void> {
 function sendClipsChanged(): void {
   mainWindow?.webContents.send(
     IpcChannels.clipsChanged,
-    withThumbUrls(listClips(appDataDir)),
+    withClipUrls(listClips(appDataDir)),
   );
   updateTrayBadge();
 }
@@ -264,6 +430,7 @@ async function connectObs(): Promise<void> {
     obsConnected = false;
     obsError = "Verbindung zu OBS getrennt";
     replayBufferActive = false;
+    replayMaxSeconds = null;
     sendObsStatus();
     void refreshObsProcessRunning();
     if (!intentionalDisconnect) scheduleReconnect();
@@ -272,10 +439,16 @@ async function connectObs(): Promise<void> {
     replayBufferActive = Boolean(event.outputActive);
     sendObsStatus();
   });
+  obs.on("CurrentProfileChanged", () => {
+    void refreshReplayMaxSeconds().then((changed) => {
+      if (changed) sendObsStatus();
+    });
+  });
   obs.on("ConnectionError", (err) => {
     obsConnected = false;
     obsError = err instanceof Error ? err.message : String(err);
     replayBufferActive = false;
+    replayMaxSeconds = null;
     sendObsStatus();
   });
 
@@ -286,6 +459,7 @@ async function connectObs(): Promise<void> {
     obsError = undefined;
     reconnectAttempt = 0;
     await refreshReplayBuffer();
+    await refreshReplayMaxSeconds();
     sendObsStatus();
   } catch (err) {
     obsConnected = false;
@@ -295,17 +469,35 @@ async function connectObs(): Promise<void> {
   }
 }
 
+/** Untrimmed OBS replay dumps (`Replay 2026-…`) — keep `_30s` clips. */
+function looksLikeUntrimmedReplay(filePath: string): boolean {
+  const stem = basename(filePath, extname(filePath));
+  return /^Replay\b/i.test(stem) && !/_\d+s$/i.test(stem);
+}
+
 async function handleNewVideo(filePath: string): Promise<void> {
   if (!isVideoFile(filePath) || isIgnoredPath(filePath)) return;
+  if (clipping || looksLikeUntrimmedReplay(filePath)) return;
   const stable = await waitForStableFile(filePath);
-  if (!stable || isIgnoredPath(filePath)) return;
+  if (!stable || isIgnoredPath(filePath) || clipping) return;
   if (!isVideoFile(filePath)) return;
+  if (looksLikeUntrimmedReplay(filePath)) return;
 
   const record = await importClipFromFile(
     { appDataDir, outputDir: config.CLIP_OUTPUT_DIR },
     filePath,
   );
   if (record) sendClipsChanged();
+}
+
+async function handleRemovedVideo(filePath: string): Promise<void> {
+  if (!isVideoFile(filePath) || isIgnoredPath(filePath)) return;
+  const removed = removeClipByFilePath(appDataDir, filePath);
+  if (!removed) return;
+  if (cutterClipId === removed.id && cutterWindow && !cutterWindow.isDestroyed()) {
+    cutterWindow.close();
+  }
+  sendClipsChanged();
 }
 
 function startFolderWatcher(): void {
@@ -333,6 +525,69 @@ function startFolderWatcher(): void {
   folderWatcher.on("add", (filePath) => {
     void handleNewVideo(filePath);
   });
+  folderWatcher.on("unlink", (filePath) => {
+    void handleRemovedVideo(filePath);
+  });
+}
+
+const windowPrefs = {
+  preload: preloadPath,
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: false,
+} as const;
+
+function loadRenderer(win: BrowserWindow, hash?: string): void {
+  if (process.env.ELECTRON_RENDERER_URL) {
+    const base = process.env.ELECTRON_RENDERER_URL;
+    void win.loadURL(hash ? `${base}#${hash}` : base);
+    return;
+  }
+  void win.loadFile(join(__dirname, "../renderer/index.html"), hash ? { hash } : undefined);
+}
+
+function cutterHash(id: string): string {
+  return `cut/${encodeURIComponent(id)}`;
+}
+
+function openCutterWindow(id: string): { ok: true } | { ok: false; error: string } {
+  const clip = findClip(appDataDir, id);
+  if (!clip) return { ok: false, error: "Clip nicht gefunden." };
+  if (clip.missing || !clip.filePath || !fs.existsSync(clip.filePath)) {
+    return { ok: false, error: "Die Clip-Datei fehlt." };
+  }
+
+  const hash = cutterHash(id);
+  if (cutterWindow && !cutterWindow.isDestroyed()) {
+    if (cutterClipId !== id) {
+      cutterClipId = id;
+      cutterWindow.setTitle(`Schneiden — ${clip.name}`);
+      loadRenderer(cutterWindow, hash);
+    }
+    cutterWindow.show();
+    if (cutterWindow.isMinimized()) cutterWindow.restore();
+    cutterWindow.focus();
+    return { ok: true };
+  }
+
+  cutterWindow = new BrowserWindow({
+    width: 920,
+    height: 840,
+    minWidth: 720,
+    minHeight: 640,
+    title: `Schneiden — ${clip.name}`,
+    icon: getAppIcon(),
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: { ...windowPrefs },
+  });
+  cutterClipId = id;
+  loadRenderer(cutterWindow, hash);
+  cutterWindow.on("closed", () => {
+    cutterWindow = null;
+    cutterClipId = null;
+  });
+  return { ok: true };
 }
 
 function createWindow(): void {
@@ -343,20 +598,11 @@ function createWindow(): void {
     minHeight: 560,
     title: "JSClipping",
     icon: getAppIcon(),
-    show: !startedAtLogin(),
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
+    show: !startedAtLogin() && pendingClipSeconds == null,
+    webPreferences: { ...windowPrefs },
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
-  }
+  loadRenderer(mainWindow);
 
   mainWindow.on("close", (event) => {
     if (!isAppQuitting()) {
@@ -368,6 +614,81 @@ function createWindow(): void {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+}
+
+async function runCreateClip(
+  seconds: number,
+  options?: { log?: boolean },
+): Promise<CreateClipResult> {
+  const invalid = validateClipSeconds(seconds);
+  if (invalid) return { ok: false, error: invalid };
+  const length = Math.floor(seconds);
+
+  if (clipping) {
+    return { ok: false, error: "Ein Clip wird bereits erstellt." };
+  }
+  if (!obsConnected) {
+    await waitForObsConnected();
+  }
+  if (!obsConnected) {
+    return { ok: false, error: "OBS-WebSocket ist nicht verbunden." };
+  }
+
+  const log = options?.log ? createRunLog("clip") : undefined;
+  log?.info(`Requested clip length: ${length}s`);
+  log?.info(`CLIP_OUTPUT_DIR: ${config.CLIP_OUTPUT_DIR}`);
+
+  clipping = true;
+  try {
+    const result = await saveAndTrimClip({
+      obs,
+      seconds: length,
+      outputDir: config.CLIP_OUTPUT_DIR,
+      log,
+      onReplaySaved: (savedPath) => {
+        ignorePathTemporarily(savedPath, 30_000);
+      },
+    });
+    removeClipByFilePath(appDataDir, result.sourcePath);
+    await importClipFromFile(
+      { appDataDir, outputDir: config.CLIP_OUTPUT_DIR },
+      result.outputPath,
+      { durationSeconds: result.durationSeconds },
+    );
+    sendClipsChanged();
+    log?.info(`Done: ${result.outputPath}`);
+    return { ok: true, outputPath: result.outputPath };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log?.error(`Error: ${message}`);
+    return { ok: false, error: message };
+  } finally {
+    clipping = false;
+  }
+}
+
+async function handleClipArg(seconds: number): Promise<void> {
+  const result = await runCreateClip(seconds, { log: true });
+  if (!result.ok) {
+    console.error(result.error);
+  }
+}
+
+function flushPendingClip(): void {
+  if (pendingClipSeconds == null) return;
+  const seconds = pendingClipSeconds;
+  pendingClipSeconds = null;
+  void handleClipArg(seconds);
+}
+
+function showMainWindowFromSecondInstance(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    return;
+  }
+  createWindow();
 }
 
 function registerIpc(): void {
@@ -446,6 +767,7 @@ function registerIpc(): void {
       }
       obsConnected = false;
       replayBufferActive = false;
+      replayMaxSeconds = null;
       try {
         await killObsProcess();
       } catch (err) {
@@ -462,37 +784,24 @@ function registerIpc(): void {
   ipcMain.handle(
     IpcChannels.createClip,
     async (_event, seconds: number): Promise<CreateClipResult> => {
-      if (clipping) {
-        return { ok: false, error: "Ein Clip wird bereits erstellt." };
-      }
-      if (!obsConnected) {
-        return { ok: false, error: "OBS-WebSocket ist nicht verbunden." };
-      }
-      clipping = true;
-      try {
-        const result = await saveAndTrimClip({
-          obs,
-          seconds,
-          outputDir: config.CLIP_OUTPUT_DIR,
-        });
-        // Watcher will pick it up; also import eagerly for snappy UI
-        await importClipFromFile(
-          { appDataDir, outputDir: config.CLIP_OUTPUT_DIR },
-          result.outputPath,
-          { durationSeconds: result.durationSeconds },
-        );
-        sendClipsChanged();
-        return { ok: true, outputPath: result.outputPath };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: message };
-      } finally {
-        clipping = false;
-      }
+      return runCreateClip(seconds);
     },
   );
 
-  ipcMain.handle(IpcChannels.listClips, () => withThumbUrls(listClips(appDataDir)));
+  ipcMain.handle(IpcChannels.listClips, () => withClipUrls(listClips(appDataDir)));
+
+  ipcMain.handle(IpcChannels.getClip, (_event, id: string): ClipRecord | null => {
+    const clip = findClip(appDataDir, id);
+    if (!clip) return null;
+    return withClipUrls([clip])[0] ?? null;
+  });
+
+  ipcMain.handle(
+    IpcChannels.openCutter,
+    (_event, id: string): { ok: boolean; error?: string } => {
+      return openCutterWindow(id);
+    },
+  );
 
   ipcMain.handle(
     IpcChannels.renameClip,
@@ -500,7 +809,7 @@ function registerIpc(): void {
       const result = renameClip(appDataDir, id, name);
       if (result.ok) {
         sendClipsChanged();
-        return { ok: true, clip: withThumbUrls([result.clip])[0]! };
+        return { ok: true, clip: withClipUrls([result.clip])[0]! };
       }
       return result;
     },
@@ -510,8 +819,50 @@ function registerIpc(): void {
     IpcChannels.deleteClip,
     async (_event, id: string): Promise<{ ok: boolean; error?: string }> => {
       const result = deleteClip(appDataDir, id);
-      if (result.ok) sendClipsChanged();
+      if (result.ok) {
+        if (cutterClipId === id && cutterWindow && !cutterWindow.isDestroyed()) {
+          cutterWindow.close();
+        }
+        sendClipsChanged();
+      }
       return result;
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.cutClip,
+    async (_event, id: string, ranges: CutRange[]): Promise<CutClipResult> => {
+      if (cutting) {
+        return { ok: false, error: "Ein Clip wird bereits geschnitten." };
+      }
+      cutting = true;
+      try {
+        const result = await cutClipToNewFile(
+          { appDataDir, outputDir: config.CLIP_OUTPUT_DIR },
+          id,
+          ranges,
+        );
+        if (result.ok) {
+          sendClipsChanged();
+          return { ok: true, clip: withClipUrls([result.clip])[0]! };
+        }
+        return result;
+      } finally {
+        cutting = false;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannels.getStorage,
+    async (): Promise<StorageInfoResult> => {
+      try {
+        const info = await getStorageInfo(config.CLIP_OUTPUT_DIR);
+        return { ok: true, info };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
     },
   );
 
@@ -538,7 +889,32 @@ function registerIpc(): void {
   );
 }
 
+const gotSingleInstanceLock = app.requestSingleInstanceLock(
+  pendingClipSeconds != null ? { clipSeconds: pendingClipSeconds } : {},
+);
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, commandLine) => {
+    const seconds = parseClipSecondsArg(commandLine);
+    if (seconds != null) {
+      if (appReadyForClip) {
+        void handleClipArg(seconds);
+      } else {
+        pendingClipSeconds = seconds;
+      }
+      return;
+    }
+    if (app.isReady()) {
+      showMainWindowFromSecondInstance();
+    }
+  });
+}
+
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return;
+
   appDataDir = app.getPath("userData");
   // Prefer %APPDATA%\JSClipping so CLI and Electron share config
   if (process.env.APPDATA) {
@@ -560,6 +936,23 @@ app.whenReady().then(async () => {
         return new Response("Not Found", { status: 404 });
       }
       return net.fetch(pathToFileURL(file).toString());
+    } catch {
+      return new Response("Error", { status: 500 });
+    }
+  });
+
+  protocol.handle("media", (request) => {
+    try {
+      const url = new URL(request.url);
+      const id = decodeURIComponent(url.pathname.replace(/^\//, "").replace(/\/$/, ""));
+      if (!id || id.includes("..") || id.includes("/") || id.includes("\\")) {
+        return new Response("Bad Request", { status: 400 });
+      }
+      const clip = findClip(appDataDir, id);
+      if (!clip?.filePath || !fs.existsSync(clip.filePath)) {
+        return new Response("Not Found", { status: 404 });
+      }
+      return serveMediaFile(clip.filePath, request);
     } catch {
       return new Response("Error", { status: 500 });
     }
@@ -593,6 +986,9 @@ app.whenReady().then(async () => {
   if (config.AUTOSTART) {
     await ensureReplayBufferStarted();
   }
+
+  appReadyForClip = true;
+  flushPendingClip();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

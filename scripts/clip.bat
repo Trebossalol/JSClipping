@@ -1,6 +1,9 @@
 @echo off
 setlocal
 
+REM Dev launcher (tsx). Packaged Action Ring should call:
+REM   "C:\Program Files\JSClipping\JSClipping.exe" --clip 30
+
 if "%~1"=="" (
   echo Usage: %~nx0 ^<seconds^>
   echo Example: %~nx0 30

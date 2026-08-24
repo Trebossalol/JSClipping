@@ -4,17 +4,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
+import { formatDuration } from "@/format";
 import type { ObsStatus } from "@shared/ipc";
-import {
-  ChevronDownIcon,
-  MonitorPlayIcon,
-  PlugIcon,
-  PowerOffIcon,
-  UnplugIcon,
-} from "lucide-react";
+import { ChevronDownIcon, PlugIcon, UnplugIcon } from "lucide-react";
 import {
   startObsWithAutostart,
   stopObsProcess,
@@ -49,6 +46,10 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
   }
 
   const connecting = status == null;
+  const replayMaxLabel =
+    connected && status.replayMaxSeconds != null
+      ? formatDuration(status.replayMaxSeconds)
+      : "";
   const label = connecting
     ? "Verbinden…"
     : connected
@@ -56,11 +57,8 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
         ? "Puffer aus"
         : "OBS verbunden"
       : "OBS getrennt";
-  const title = connecting
-    ? undefined
-    : connected
-      ? undefined
-      : (status.error ?? "Nicht verbunden");
+  const title =
+    !connecting && !connected ? (status.error ?? "Nicht verbunden") : undefined;
 
   return (
     <DropdownMenu>
@@ -84,6 +82,17 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-44">
+        {replayMaxLabel ? (
+          <>
+            <DropdownMenuLabel>
+              Puffer max. {replayMaxLabel}
+              <span className="mt-0.5 block font-normal">
+                Maximale Wiederholungszeit in OBS
+              </span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         {running ? (
           <DropdownMenuItem
             variant="destructive"

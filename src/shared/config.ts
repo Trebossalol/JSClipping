@@ -1,13 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 import * as z from "zod";
-import { ensureDir, getAppDataDir, getRepoRoot } from "./paths.js";
+import {
+  DEFAULT_CLIP_PRESETS,
+  MAX_CLIP_PRESETS,
+  normalizeClipPresets,
+} from "./ipc.js";
+import { ensureDir, getAppDataDir, getRepoRoot, isPackagedApp } from "./paths.js";
 
 export const ConfigSchema = z.object({
   OBS_URL: z.url(),
   OBS_PASSWORD: z.string().min(1),
   CLIP_OUTPUT_DIR: z.string().min(1),
   AUTOSTART: z.boolean().default(false),
+  CLIP_PRESETS: z.preprocess(
+    (value) => normalizeClipPresets(value),
+    z.array(z.number().int()).min(1).max(MAX_CLIP_PRESETS),
+  ),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -17,6 +26,7 @@ const DEFAULTS: AppConfig = {
   OBS_PASSWORD: "CHANGE_ME",
   CLIP_OUTPUT_DIR: "C:\\Clips",
   AUTOSTART: false,
+  CLIP_PRESETS: [...DEFAULT_CLIP_PRESETS],
 };
 
 let cachedAppDataDir: string | undefined;
@@ -55,6 +65,7 @@ function parseDotEnv(content: string): Record<string, string> {
 }
 
 function tryLoadEnvFile(): AppConfig | null {
+  if (isPackagedApp()) return null;
   const envPath = path.join(getRepoRoot(), ".env");
   if (!fs.existsSync(envPath)) return null;
   try {

@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { getVideoDuration } from "./clip-service.js";
-import type { ClipRecord } from "./ipc.js";
+import { cutVideoToFile, getVideoDuration } from "./clip-service.js";
+import type { ClipRecord, CutRange } from "./ipc.js";
 import { ensureDir, isVideoFile, yearMonthDir, yearMonthParts } from "./paths.js";
 import { generateThumbnail } from "./thumbnail.js";
 
@@ -49,12 +49,27 @@ function writeStore(appDataDir: string, clips: ClipRecord[]): void {
   fs.writeFileSync(clipsJsonPath(appDataDir), JSON.stringify(clips, null, 2), "utf8");
 }
 
+function withLiveFileMeta(clip: ClipRecord): ClipRecord {
+  try {
+    const size = fs.statSync(clip.filePath).size;
+    return {
+      ...clip,
+      namedByUser: resolveNamedByUser(clip),
+      missing: false,
+      fileSizeBytes: size,
+    };
+  } catch {
+    return {
+      ...clip,
+      namedByUser: resolveNamedByUser(clip),
+      missing: true,
+      fileSizeBytes: null,
+    };
+  }
+}
+
 export function listClips(appDataDir: string): ClipRecord[] {
-  const clips = readStore(appDataDir).map((clip) => ({
-    ...clip,
-    namedByUser: resolveNamedByUser(clip),
-    missing: !fs.existsSync(clip.filePath),
-  }));
+  const clips = readStore(appDataDir).map(withLiveFileMeta);
   clips.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
@@ -352,8 +367,75 @@ export function deleteClip(
   return { ok: true };
 }
 
+/**
+ * Drop a library row when its file disappeared (watcher unlink).
+ * Does not delete the file — it is already gone.
+ */
+export function removeClipByFilePath(
+  appDataDir: string,
+  filePath: string,
+): ClipRecord | null {
+  const clips = readStore(appDataDir);
+  const key = path.normalize(filePath).toLowerCase();
+  const index = clips.findIndex(
+    (c) => path.normalize(c.filePath).toLowerCase() === key,
+  );
+  if (index < 0) return null;
+
+  const clip = clips[index]!;
+  const thumb = path.join(thumbnailsDir(appDataDir), `${clip.id}.jpg`);
+  if (fs.existsSync(thumb)) {
+    try {
+      fs.unlinkSync(thumb);
+    } catch {
+      // Thumbnail cleanup is best-effort.
+    }
+  }
+
+  clips.splice(index, 1);
+  writeStore(appDataDir, clips);
+  return clip;
+}
+
 export function findClip(appDataDir: string, id: string): ClipRecord | undefined {
   return listClips(appDataDir).find((c) => c.id === id);
+}
+
+export async function cutClipToNewFile(
+  options: ClipsStoreOptions,
+  id: string,
+  ranges: CutRange[],
+): Promise<{ ok: true; clip: ClipRecord } | { ok: false; error: string }> {
+  const { appDataDir } = options;
+  const clip = findClip(appDataDir, id);
+  if (!clip) return { ok: false, error: "Clip nicht gefunden." };
+  if (!clip.filePath || !fs.existsSync(clip.filePath)) {
+    return { ok: false, error: "Die Clip-Datei fehlt." };
+  }
+
+  const dir = path.dirname(clip.filePath);
+  const ext = path.extname(clip.filePath) || ".mp4";
+  const stem = `${path.basename(clip.filePath, ext)} (cut)`;
+  const dest = uniquePath(dir, stem, ext);
+
+  ignorePathTemporarily(dest, 15_000);
+  try {
+    const { durationSeconds } = await cutVideoToFile(clip.filePath, dest, ranges);
+    const record = await importClipFromFile(options, dest, { durationSeconds });
+    if (record) return { ok: true, clip: record };
+
+    const existing = listClips(appDataDir).find(
+      (c) => path.normalize(c.filePath) === path.normalize(dest),
+    );
+    if (existing) return { ok: true, clip: existing };
+    return {
+      ok: false,
+      error: "Der neue Clip konnte nicht in die Bibliothek übernommen werden.",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
 }
 
 export function waitForStableFile(

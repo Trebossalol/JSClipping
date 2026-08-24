@@ -4,6 +4,7 @@ import type { AppConfigDto, ClipRecord, ObsStatus } from "@shared/ipc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
 import { InfoIcon } from "lucide-react";
+import { formatDuration } from "./format";
 import { AppHeader, type AppView } from "./components/AppHeader";
 import { ClipActions } from "./components/ClipActions";
 import {
@@ -11,6 +12,7 @@ import {
   type ClipFilter,
 } from "./components/RecentClips";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { StoragePanel } from "./components/StoragePanel";
 
 function untitledCount(clips: ClipRecord[]): number {
   return clips.filter((c) => !c.namedByUser && !c.missing).length;
@@ -81,7 +83,7 @@ export function App() {
         setLastSeconds(seconds);
         selectNewestRef.current = true;
         setClipMessage({
-          text: `Die letzten ${seconds}s wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
+          text: `Die letzten ${formatDuration(seconds)} wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
           kind: "ok",
         });
         toast.success("Clip gespeichert.");
@@ -119,6 +121,16 @@ export function App() {
   function revealClip(id: string): void {
     setSelectedId(id);
     void window.api.revealClip(id);
+  }
+
+  async function openCutter(id: string): Promise<void> {
+    setSelectedId(id);
+    const result = await window.api.openCutter(id);
+    if (!result.ok) {
+      const text = result.error ?? "Schneidefenster konnte nicht geöffnet werden.";
+      setClipMessage({ text, kind: "err" });
+      toast.error(text);
+    }
   }
 
   async function deleteClip(id: string): Promise<void> {
@@ -178,6 +190,7 @@ export function App() {
         }}
         busy={clippingBusy}
         lastSeconds={lastSeconds}
+        clipPresets={config.CLIP_PRESETS}
         onCreate={(seconds) => void createClip(seconds)}
       />
 
@@ -199,8 +212,11 @@ export function App() {
               onRename={(id, name) => void renameClip(id, name)}
               onReveal={revealClip}
               onDelete={(id) => deleteClip(id)}
+              onCut={(id) => void openCutter(id)}
             />
           </div>
+        ) : view === "storage" ? (
+          <StoragePanel />
         ) : (
           <SettingsPanel config={config} onSave={saveConfig} />
         )}

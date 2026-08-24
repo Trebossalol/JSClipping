@@ -4,9 +4,12 @@ import {
   type AppConfigDto,
   type ClipRecord,
   type CreateClipResult,
+  type CutClipResult,
+  type CutRange,
   type ElectronApi,
   type ObsStatus,
   type RenameClipResult,
+  type StorageInfoResult,
 } from "../shared/ipc.js";
 
 const api: ElectronApi = {
@@ -39,8 +42,14 @@ const api: ElectronApi = {
   renameClip: (id: string, name: string): Promise<RenameClipResult> =>
     ipcRenderer.invoke(IpcChannels.renameClip, id, name),
   deleteClip: (id: string) => ipcRenderer.invoke(IpcChannels.deleteClip, id),
+  cutClip: (id: string, ranges: CutRange[]): Promise<CutClipResult> =>
+    ipcRenderer.invoke(IpcChannels.cutClip, id, ranges),
+  getClip: (id: string) => ipcRenderer.invoke(IpcChannels.getClip, id),
+  openCutter: (id: string) => ipcRenderer.invoke(IpcChannels.openCutter, id),
   openClip: (id: string) => ipcRenderer.invoke(IpcChannels.openClip, id),
   revealClip: (id: string) => ipcRenderer.invoke(IpcChannels.revealClip, id),
+  getStorage: (): Promise<StorageInfoResult> =>
+    ipcRenderer.invoke(IpcChannels.getStorage),
   startObs: () => ipcRenderer.invoke(IpcChannels.startObs),
   stopObs: () => ipcRenderer.invoke(IpcChannels.stopObs),
 };

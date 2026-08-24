@@ -1,24 +1,22 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ButtonGroup } from "@/components/ui/button-group";
 import type { ObsStatus } from "@shared/ipc";
 import {
-  ChevronDownIcon,
   ClockIcon,
   FilePenIcon,
+  HardDriveIcon,
   LibraryIcon,
   ScissorsIcon,
   SettingsIcon,
 } from "lucide-react";
-import { CLIP_PRESETS, getClipAvailability } from "./ClipActions";
+import {
+  clipPresetsFromSeconds,
+  getClipAvailability,
+} from "./ClipActions";
 import { ObsStatusPill } from "./ObsStatusPill";
 
-export type AppView = "library" | "settings";
+export type AppView = "library" | "storage" | "settings";
 
 interface AppHeaderProps {
   view: AppView;
@@ -28,6 +26,7 @@ interface AppHeaderProps {
   onUntitled: () => void;
   busy: boolean;
   lastSeconds: number | null;
+  clipPresets: number[];
   onCreate: (seconds: number) => void;
 }
 
@@ -39,8 +38,10 @@ export function AppHeader({
   onUntitled,
   busy,
   lastSeconds,
+  clipPresets,
   onCreate,
 }: AppHeaderProps) {
+  const presets = clipPresetsFromSeconds(clipPresets);
   const { connected, replayOff, canClip } = getClipAvailability(
     obsStatus,
     busy,
@@ -65,34 +66,45 @@ export function AppHeader({
             </p>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" size="sm" variant="outline">
-              {view === "library" ? (
-                <LibraryIcon data-icon="inline-start" />
-              ) : (
-                <SettingsIcon data-icon="inline-start" />
-              )}
-              {view === "library" ? "Bibliothek" : "Einstellungen"}
-              <ChevronDownIcon data-icon="inline-end" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={() => onViewChange("library")}>
-              <LibraryIcon />
-              Bibliothek
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onViewChange("settings")}>
-              <SettingsIcon />
-              Einstellungen
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ButtonGroup>
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "library" ? "default" : "outline"}
+            onClick={() => onViewChange("library")}
+          >
+            <LibraryIcon data-icon="inline-start" />
+            Bibliothek
+            {untitledCount > 0 ? (
+              <Badge variant="secondary" className="ml-1">
+                {untitledCount}
+              </Badge>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "storage" ? "default" : "outline"}
+            onClick={() => onViewChange("storage")}
+          >
+            <HardDriveIcon data-icon="inline-start" />
+            Speicher
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={view === "settings" ? "default" : "outline"}
+            onClick={() => onViewChange("settings")}
+          >
+            <SettingsIcon data-icon="inline-start" />
+            Einstellungen
+          </Button>
+        </ButtonGroup>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <ObsStatusPill status={obsStatus} />
-        {connected
-          ? CLIP_PRESETS.map(({ seconds, label, hint }) => {
+        {view === "library" && connected
+          ? presets.map(({ seconds, label, hint }) => {
               const active = lastSeconds === seconds;
               return (
                 <Button
@@ -110,6 +122,12 @@ export function AppHeader({
               );
             })
           : null}
+        {untitledCount > 0 && view !== "library" ? (
+          <Button type="button" size="sm" variant="ghost" onClick={onUntitled}>
+            <FilePenIcon data-icon="inline-start" />
+            {untitledCount} unbenannt
+          </Button>
+        ) : null}
       </div>
     </header>
   );

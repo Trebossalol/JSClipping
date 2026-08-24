@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ensureDir, getRepoRoot } from "./paths.js";
+import { ensureDir, getLogsDir } from "./paths.js";
 
 export interface RunLog {
   filePath: string;
@@ -14,7 +14,7 @@ function stamp(date = new Date()): string {
 }
 
 export function createRunLog(label = "clip"): RunLog {
-  const logDir = path.join(getRepoRoot(), "logs");
+  const logDir = getLogsDir();
   ensureDir(logDir);
 
   const fileName = `${label}-${stamp()}.log`;
