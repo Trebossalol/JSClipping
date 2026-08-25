@@ -18,5 +18,10 @@
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src/renderer/src/**/*", "src/shared/ipc.ts", "src/shared/app.config.ts"]
+  "include": [
+    "src/renderer/src/**/*",
+    "src/shared/ipc.ts",
+    "src/shared/app.config.ts",
+    "src/shared/hotkeys.ts"
+  ]
 }

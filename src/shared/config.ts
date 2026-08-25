@@ -10,9 +10,18 @@ export const ConfigSchema = z.object({
   OBS_PASSWORD: z.string().min(1),
   CLIP_OUTPUT_DIR: z.string().min(1),
   AUTOSTART: z.boolean().default(false),
+  ONBOARDING_HIDDEN: z.boolean().default(false),
   CLIP_PRESETS: z.preprocess(
     (value) => normalizeClipPresets(value),
-    z.array(z.number().int()).min(1).max(MAX_CLIP_PRESETS),
+    z
+      .array(
+        z.object({
+          seconds: z.number().int(),
+          hotkey: z.string().nullable(),
+        }),
+      )
+      .min(1)
+      .max(MAX_CLIP_PRESETS),
   ),
 });
 
@@ -20,7 +29,9 @@ export type AppConfig = z.infer<typeof ConfigSchema>;
 
 const DEFAULTS: AppConfig = {
   ...DEFAULT_USER_CONFIG,
-  CLIP_PRESETS: [...DEFAULT_USER_CONFIG.CLIP_PRESETS],
+  CLIP_PRESETS: DEFAULT_USER_CONFIG.CLIP_PRESETS.map((preset) => ({
+    ...preset,
+  })),
 };
 
 let cachedAppDataDir: string | undefined;

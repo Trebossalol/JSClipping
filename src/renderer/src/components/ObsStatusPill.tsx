@@ -14,12 +14,14 @@ import { formatDuration } from "@/format";
 import type { ObsStatus } from "@shared/ipc";
 import { ChevronDownIcon, PlugIcon, UnplugIcon } from "lucide-react";
 import { startObsWithAutostart, stopObsProcess } from "./ClipActions";
+import { useTopLoader } from "./TopLoadingBar";
 
 interface ObsStatusPillProps {
   status: ObsStatus | null;
 }
 
 export function ObsStatusPill({ status }: ObsStatusPillProps) {
+  const loader = useTopLoader();
   const [busy, setBusy] = useState(false);
   const connected = status?.connected === true;
   const running = status?.running === true || connected;
@@ -28,7 +30,7 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
   async function onStartObs(): Promise<void> {
     setBusy(true);
     try {
-      await startObsWithAutostart();
+      await loader.wrap(() => startObsWithAutostart());
     } finally {
       setBusy(false);
     }
@@ -37,7 +39,7 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
   async function onStopObs(): Promise<void> {
     setBusy(true);
     try {
-      await stopObsProcess();
+      await loader.wrap(() => stopObsProcess());
     } finally {
       setBusy(false);
     }

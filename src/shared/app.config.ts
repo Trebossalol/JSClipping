@@ -19,5 +19,9 @@ export const DEFAULT_USER_CONFIG = {
   OBS_PASSWORD: "CHANGE_ME",
   CLIP_OUTPUT_DIR: "C:\\Clips",
   AUTOSTART: false,
-  CLIP_PRESETS: [...DEFAULT_CLIP_PRESETS],
+  CLIP_PRESETS: DEFAULT_CLIP_PRESETS.map((seconds) => ({
+    seconds,
+    hotkey: null as string | null,
+  })),
+  ONBOARDING_HIDDEN: false,
 };

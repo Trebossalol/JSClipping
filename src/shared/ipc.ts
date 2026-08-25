@@ -3,21 +3,51 @@ import {
   MAX_CLIP_PRESETS,
   MIN_CLIP_PRESET_SECONDS,
 } from "./app.config.js";
+import { normalizeHotkey } from "./hotkeys.js";
 
-export function normalizeClipPresets(value: unknown): number[] {
-  if (!Array.isArray(value)) return [...DEFAULT_CLIP_PRESETS];
-  const out: number[] = [];
-  const seen = new Set<number>();
+export interface ClipPreset {
+  seconds: number;
+  hotkey: string | null;
+}
+
+export function defaultClipPresets(): ClipPreset[] {
+  return DEFAULT_CLIP_PRESETS.map((seconds) => ({ seconds, hotkey: null }));
+}
+
+export function clipPresetSeconds(presets: ClipPreset[]): number[] {
+  return presets.map((preset) => preset.seconds);
+}
+
+export function normalizeClipPresets(value: unknown): ClipPreset[] {
+  if (!Array.isArray(value)) return defaultClipPresets();
+  const out: ClipPreset[] = [];
+  const seenSeconds = new Set<number>();
+  const seenHotkeys = new Set<string>();
   for (const item of value) {
-    const n = typeof item === "number" ? item : Number(item);
-    if (!Number.isInteger(n)) continue;
-    if (n < MIN_CLIP_PRESET_SECONDS) continue;
-    if (seen.has(n)) continue;
-    seen.add(n);
-    out.push(n);
+    let seconds: number;
+    let hotkey: string | null = null;
+    if (typeof item === "number" || typeof item === "string") {
+      seconds = Number(item);
+    } else if (item && typeof item === "object") {
+      const rec = item as Record<string, unknown>;
+      seconds =
+        typeof rec.seconds === "number" ? rec.seconds : Number(rec.seconds);
+      if (typeof rec.hotkey === "string") {
+        hotkey = normalizeHotkey(rec.hotkey);
+      }
+    } else {
+      continue;
+    }
+    if (!Number.isInteger(seconds)) continue;
+    if (seconds < MIN_CLIP_PRESET_SECONDS) continue;
+    if (seenSeconds.has(seconds)) continue;
+    seenSeconds.add(seconds);
+    if (hotkey && seenHotkeys.has(hotkey)) hotkey = null;
+    if (hotkey) seenHotkeys.add(hotkey);
+    out.push({ seconds, hotkey });
     if (out.length >= MAX_CLIP_PRESETS) break;
   }
-  return out.length > 0 ? out : [...DEFAULT_CLIP_PRESETS];
+  return out.length > 0 ? out : defaultClipPresets();
 }
 
 export interface AppConfigDto {
@@ -25,7 +55,8 @@ export interface AppConfigDto {
   OBS_PASSWORD: string;
   CLIP_OUTPUT_DIR: string;
   AUTOSTART: boolean;
-  CLIP_PRESETS: number[];
+  CLIP_PRESETS: ClipPreset[];
+  ONBOARDING_HIDDEN: boolean;
 }
 
 export interface ObsStatus {
@@ -87,6 +118,8 @@ export const IpcChannels = {
   getStorage: "storage:get",
   startObs: "obs:start",
   stopObs: "obs:stop",
+  hotkeysFailed: "hotkeys:failed",
+  hotkeyClip: "clip:hotkey",
 } as const;
 
 export type CreateClipResult =
@@ -104,6 +137,11 @@ export type CutClipResult =
 export type StorageInfoResult =
   | { ok: true; info: StorageInfo }
   | { ok: false; error: string };
+
+export interface HotkeyClipPayload {
+  seconds: number;
+  result: CreateClipResult;
+}
 
 export interface ElectronApi {
   getConfig(): Promise<AppConfigDto>;
@@ -129,6 +167,8 @@ export interface ElectronApi {
   getStorage(): Promise<StorageInfoResult>;
   startObs(): Promise<{ ok: boolean; error?: string }>;
   stopObs(): Promise<{ ok: boolean; error?: string }>;
+  onHotkeysFailed(callback: (accelerators: string[]) => void): () => void;
+  onHotkeyClip(callback: (payload: HotkeyClipPayload) => void): () => void;
 }
 
 declare global {

@@ -12,6 +12,7 @@ import {
   ipcMain,
   Menu,
   net,
+  Notification,
   protocol,
   shell,
 } from "electron";
@@ -46,6 +47,7 @@ import {
   type CreateClipResult,
   type CutClipResult,
   type CutRange,
+  type HotkeyClipPayload,
   type ObsStatus,
   type RenameClipResult,
   type StorageInfoResult,
@@ -71,6 +73,10 @@ import {
   updateTrayBadge,
 } from "./tray.js";
 import { getAppIcon } from "./tray-icon.js";
+import {
+  registerPresetHotkeys,
+  unregisterPresetHotkeys,
+} from "./hotkeys.js";
 import {
   setAppAutostartEnabled,
   startedAtLogin,
@@ -647,6 +653,42 @@ async function runCreateClip(
   }
 }
 
+function sendToMainWindow(channel: string, payload: unknown): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+function windowCanShowToast(): boolean {
+  return (
+    mainWindow != null &&
+    !mainWindow.isDestroyed() &&
+    mainWindow.isVisible() &&
+    !mainWindow.isMinimized()
+  );
+}
+
+function syncPresetHotkeys(notify: boolean): string[] {
+  const failed = registerPresetHotkeys(config.CLIP_PRESETS, (seconds) => {
+    void handlePresetHotkey(seconds);
+  });
+  if (notify && failed.length > 0) {
+    sendToMainWindow(IpcChannels.hotkeysFailed, failed);
+  }
+  return failed;
+}
+
+async function handlePresetHotkey(seconds: number): Promise<void> {
+  const result = await runCreateClip(seconds, { log: true });
+  const payload: HotkeyClipPayload = { seconds, result };
+  sendToMainWindow(IpcChannels.hotkeyClip, payload);
+  if (windowCanShowToast()) return;
+  const body = result.ok
+    ? `Clip gespeichert (${seconds}s)`
+    : result.error;
+  new Notification({ title: APP_NAME, body }).show();
+}
+
 async function handleClipArg(seconds: number): Promise<void> {
   const result = await runCreateClip(seconds, { log: true });
   if (!result.ok) {
@@ -683,6 +725,7 @@ function registerIpc(): void {
       const prevAutostart = config.AUTOSTART;
       setAppAutostartEnabled(next.AUTOSTART, appDataDir);
       config = saveConfig(next, appDataDir);
+      syncPresetHotkeys(true);
 
       if (config.AUTOSTART && !prevAutostart) {
         if (!(await isObsProcessRunning())) {
@@ -948,6 +991,7 @@ app.whenReady().then(async () => {
   registerIpc();
   Menu.setApplicationMenu(null);
   createWindow();
+  syncPresetHotkeys(false);
   createAppTray({
     getWindow: () => mainWindow,
     createWindow,
@@ -983,6 +1027,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   markAppQuitting();
   intentionalDisconnect = true;
+  unregisterPresetHotkeys();
   if (obsProcessPoll) {
     clearInterval(obsProcessPoll);
     obsProcessPoll = null;

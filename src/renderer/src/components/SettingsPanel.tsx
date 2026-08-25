@@ -45,13 +45,19 @@ import {
 import { toast } from "sonner";
 import {
   APP_NAME,
-  DEFAULT_CLIP_PRESETS,
   MAX_CLIP_PRESETS,
   MIN_CLIP_PRESET_SECONDS,
 } from "@shared/app.config";
-import { normalizeClipPresets, type AppConfigDto } from "@shared/ipc";
+import {
+  defaultClipPresets,
+  normalizeClipPresets,
+  type AppConfigDto,
+  type ClipPreset,
+} from "@shared/ipc";
+import { normalizeHotkey } from "@shared/hotkeys";
 import { Switch } from "@/components/ui/switch";
 import { formatDuration } from "@/format";
+import { HotkeyInput } from "./HotkeyInput";
 import { StoragePanel } from "./StoragePanel";
 import type { SettingsSection } from "./AppSidebar";
 
@@ -59,6 +65,7 @@ interface PresetDraft {
   id: number;
   minutes: string;
   seconds: string;
+  hotkey: string | null;
 }
 
 const SUGGESTED_PRESET_SECONDS = [
@@ -81,24 +88,27 @@ function parseDurationParts(
   return total;
 }
 
-function draftsFromSeconds(
-  values: number[],
+function draftsFromPresets(
+  values: ClipPreset[],
   startId: number,
 ): { drafts: PresetDraft[]; nextId: number } {
   let id = startId;
-  const drafts = values.map((total) => ({
+  const drafts = values.map((preset) => ({
     id: id++,
-    minutes: String(Math.floor(total / 60)),
-    seconds: String(total % 60),
+    minutes: String(Math.floor(preset.seconds / 60)),
+    seconds: String(preset.seconds % 60),
+    hotkey: preset.hotkey,
   }));
   return { drafts, nextId: id };
 }
 
-function defaultPresetsForMax(maxSeconds: number | null): number[] {
-  const defaults = [...DEFAULT_CLIP_PRESETS];
+function defaultPresetsForMax(maxSeconds: number | null): ClipPreset[] {
+  const defaults = defaultClipPresets();
   if (maxSeconds == null) return defaults;
-  const fitted = defaults.filter((s) => s <= maxSeconds);
-  return fitted.length > 0 ? fitted : [maxSeconds];
+  const fitted = defaults.filter((preset) => preset.seconds <= maxSeconds);
+  return fitted.length > 0
+    ? fitted
+    : [{ seconds: maxSeconds, hotkey: null }];
 }
 
 function nextPresetSeconds(
@@ -144,20 +154,53 @@ function presetRangeError(maxSeconds: number | null): string {
   return `Jedes Preset braucht eine Dauer zwischen ${formatDuration(MIN_CLIP_PRESET_SECONDS)} und ${formatDuration(maxSeconds)} (OBS-Puffer).`;
 }
 
+function duplicatePresetHotkeys(drafts: PresetDraft[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const draft of drafts) {
+    const hotkey = draft.hotkey ? normalizeHotkey(draft.hotkey) : null;
+    if (!hotkey) continue;
+    counts.set(hotkey, (counts.get(hotkey) ?? 0) + 1);
+  }
+  const dups = new Set<string>();
+  for (const [hotkey, count] of counts) {
+    if (count > 1) dups.add(hotkey);
+  }
+  return dups;
+}
+
 function collectClipPresets(
   drafts: PresetDraft[],
   maxSeconds: number | null,
-): { ok: true; values: number[] } | { ok: false; error: string } {
+): { ok: true; values: ClipPreset[] } | { ok: false; error: string } {
   if (drafts.length === 0) {
     return { ok: false, error: "Mindestens ein Clip-Preset." };
   }
-  const parsed: number[] = [];
+  const parsed: ClipPreset[] = [];
+  const hotkeys = new Set<string>();
   for (const draft of drafts) {
     const total = parseDurationParts(draft.minutes, draft.seconds, maxSeconds);
     if (total == null) {
       return { ok: false, error: presetRangeError(maxSeconds) };
     }
-    parsed.push(total);
+    let hotkey: string | null = null;
+    if (draft.hotkey) {
+      hotkey = normalizeHotkey(draft.hotkey);
+      if (!hotkey) {
+        return {
+          ok: false,
+          error:
+            "Ungültiges Tastenkürzel. Mindestens Strg, Alt oder Windows plus eine Taste.",
+        };
+      }
+      if (hotkeys.has(hotkey)) {
+        return {
+          ok: false,
+          error: "Jedes Tastenkürzel darf nur einmal vorkommen.",
+        };
+      }
+      hotkeys.add(hotkey);
+    }
+    parsed.push({ seconds: total, hotkey });
   }
   return { ok: true, values: normalizeClipPresets(parsed) };
 }
@@ -182,7 +225,7 @@ export function SettingsPanel({
   const [autostart, setAutostart] = useState(config.AUTOSTART);
   const nextPresetId = useRef(1);
   const [clipPresets, setClipPresets] = useState<PresetDraft[]>(() => {
-    const { drafts, nextId } = draftsFromSeconds(
+    const { drafts, nextId } = draftsFromPresets(
       config.CLIP_PRESETS,
       nextPresetId.current,
     );
@@ -198,7 +241,7 @@ export function SettingsPanel({
     setObsPassword(config.OBS_PASSWORD);
     setOutputDir(config.CLIP_OUTPUT_DIR);
     setAutostart(config.AUTOSTART);
-    const { drafts, nextId } = draftsFromSeconds(
+    const { drafts, nextId } = draftsFromPresets(
       config.CLIP_PRESETS,
       nextPresetId.current,
     );
@@ -217,8 +260,8 @@ export function SettingsPanel({
     if (dir) setOutputDir(dir);
   }
 
-  function applyPresetSeconds(values: number[]): void {
-    const { drafts, nextId } = draftsFromSeconds(
+  function applyPresets(values: ClipPreset[]): void {
+    const { drafts, nextId } = draftsFromPresets(
       values,
       nextPresetId.current,
     );
@@ -233,6 +276,12 @@ export function SettingsPanel({
   ): void {
     setClipPresets((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+    );
+  }
+
+  function updatePresetHotkey(id: number, hotkey: string | null): void {
+    setClipPresets((rows) =>
+      rows.map((row) => (row.id === id ? { ...row, hotkey } : row)),
     );
   }
 
@@ -261,6 +310,7 @@ export function SettingsPanel({
         id,
         minutes: String(Math.floor(total / 60)),
         seconds: String(total % 60),
+        hotkey: null,
       },
     ]);
   }
@@ -271,13 +321,7 @@ export function SettingsPanel({
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
-    const next: AppConfigDto = {
-      OBS_URL: config.OBS_URL,
-      OBS_PASSWORD: config.OBS_PASSWORD,
-      CLIP_OUTPUT_DIR: config.CLIP_OUTPUT_DIR,
-      AUTOSTART: config.AUTOSTART,
-      CLIP_PRESETS: config.CLIP_PRESETS,
-    };
+    const next: AppConfigDto = { ...config };
     if (section === "obs") {
       next.OBS_URL = obsUrl.trim();
       next.OBS_PASSWORD = obsPassword;
@@ -300,7 +344,7 @@ export function SettingsPanel({
       setObsPassword(saved.OBS_PASSWORD);
       setOutputDir(saved.CLIP_OUTPUT_DIR);
       setAutostart(saved.AUTOSTART);
-      applyPresetSeconds(saved.CLIP_PRESETS);
+      applyPresets(saved.CLIP_PRESETS);
       toast.success("Einstellungen gespeichert.");
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
@@ -311,6 +355,7 @@ export function SettingsPanel({
   }
 
   const duplicateTotals = duplicatePresetSeconds(clipPresets, maxSeconds);
+  const duplicateHotkeys = duplicatePresetHotkeys(clipPresets);
   const hasInvalidPreset = clipPresets.some(
     (row) => parseDurationParts(row.minutes, row.seconds, maxSeconds) == null,
   );
@@ -438,15 +483,19 @@ export function SettingsPanel({
               <ClockIcon className="size-4" />
               Clip-Presets
             </CardTitle>
-            <CardDescription>Buttons in der Bibliothek</CardDescription>
+            <CardDescription>
+              Buttons in der Bibliothek und optionale globale Tastenkürzel
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>
               <Field>
                 <FieldLabel>Vorschaulängen</FieldLabel>
                 <FieldDescription>
-                  Gilt nur für die Buttons in der App. Action Ring und CLI
-                  übergeben die Dauer weiterhin als Sekunden.
+                  Länge für die Buttons oben in der App. Optional ein globales
+                  Tastenkürzel — funktioniert auch, wenn das Fenster im
+                  Hintergrund ist. Mindestens Strg, Alt oder Windows plus eine
+                  Taste.
                   {maxSeconds != null
                     ? ` Maximal ${formatDuration(maxSeconds)} laut OBS-Wiederholungspuffer.`
                     : " Die Obergrenze kommt von der maximalen Wiederholungszeit in OBS, sobald verbunden."}
@@ -461,6 +510,12 @@ export function SettingsPanel({
                     const invalid = total == null;
                     const duplicate =
                       total != null && duplicateTotals.has(total);
+                    const hotkeyNormalized = draft.hotkey
+                      ? normalizeHotkey(draft.hotkey)
+                      : null;
+                    const duplicateHotkey =
+                      hotkeyNormalized != null &&
+                      duplicateHotkeys.has(hotkeyNormalized);
                     return (
                       <div
                         key={draft.id}
@@ -514,6 +569,14 @@ export function SettingsPanel({
                             <InputGroupText>Sek</InputGroupText>
                           </InputGroupAddon>
                         </InputGroup>
+                        <HotkeyInput
+                          id={`clip-preset-hotkey-${draft.id}`}
+                          value={draft.hotkey}
+                          invalid={duplicateHotkey}
+                          onChange={(hotkey) =>
+                            updatePresetHotkey(draft.id, hotkey)
+                          }
+                        />
                         <ButtonGroup>
                           <Button
                             type="button"
@@ -555,6 +618,11 @@ export function SettingsPanel({
                     Gleiche Dauern werden beim Speichern zusammengeführt.
                   </FieldDescription>
                 ) : null}
+                {duplicateHotkeys.size > 0 ? (
+                  <FieldError>
+                    Jedes Tastenkürzel darf nur einmal vorkommen.
+                  </FieldError>
+                ) : null}
                 {hasInvalidPreset ? (
                   <FieldError>{presetRangeError(maxSeconds)}</FieldError>
                 ) : null}
@@ -579,7 +647,7 @@ export function SettingsPanel({
                     size="sm"
                     variant="ghost"
                     onClick={() =>
-                      applyPresetSeconds(defaultPresetsForMax(maxSeconds))
+                      applyPresets(defaultPresetsForMax(maxSeconds))
                     }
                   >
                     <RotateCcwIcon data-icon="inline-start" />

@@ -34,6 +34,7 @@ import {
   RefreshCwIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTopLoader } from "./TopLoadingBar";
 
 const POLL_MS = 10_000;
 
@@ -81,6 +82,7 @@ function StorageLegendItem({
 }
 
 export function StoragePanel({ className }: StoragePanelProps) {
+  const loader = useTopLoader();
   const [info, setInfo] = useState<StorageInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +90,9 @@ export function StoragePanel({ className }: StoragePanelProps) {
   const refresh = useCallback(async (quiet = false): Promise<void> => {
     if (!quiet) setLoading(true);
     try {
-      const result = await window.api.getStorage();
+      const result = await (quiet
+        ? window.api.getStorage()
+        : loader.wrap(() => window.api.getStorage()));
       if (result.ok) {
         setInfo(result.info);
         setError(null);
@@ -100,7 +104,7 @@ export function StoragePanel({ className }: StoragePanelProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loader]);
 
   useEffect(() => {
     void refresh();

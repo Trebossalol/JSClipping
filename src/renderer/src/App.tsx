@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { APP_NAME } from "@shared/app.config";
+import { DEFAULT_USER_CONFIG } from "@shared/app.config";
 import type { AppConfigDto, ClipRecord, ObsStatus } from "@shared/ipc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
@@ -17,22 +17,25 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { InfoIcon } from "lucide-react";
 import { formatDuration } from "./format";
+import { formatHotkey } from "@shared/hotkeys";
 import { AppSidebar, type AppView } from "./components/AppSidebar";
 import { ClipActions } from "./components/ClipActions";
 import { CommandBar } from "./components/CommandBar";
+import { OnboardingPage } from "./components/onboarding/OnboardingPage";
 import {
   RecentClips,
   type ClipFilter,
 } from "./components/RecentClips";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { useTopLoader } from "./components/TopLoadingBar";
 
 function untitledCount(clips: ClipRecord[]): number {
   return clips.filter((c) => !c.namedByUser && !c.missing).length;
 }
 
 export function App() {
+  const loader = useTopLoader();
   const [config, setConfig] = useState<AppConfigDto | null>(null);
   const [obsStatus, setObsStatus] = useState<ObsStatus | null>(null);
   const [clips, setClips] = useState<ClipRecord[]>([]);
@@ -62,14 +65,47 @@ export function App() {
       setObsStatus(status);
       setClips(list);
       setSelectedId(list[0]?.id ?? null);
+      if (
+        !cfg.ONBOARDING_HIDDEN &&
+        cfg.OBS_PASSWORD === DEFAULT_USER_CONFIG.OBS_PASSWORD
+      ) {
+        setView("onboarding");
+      }
     }
 
-    void boot();
+    loader.begin();
+    void boot().finally(() => {
+      if (!cancelled) loader.end();
+    });
     unsubs.push(window.api.onObsStatus(setObsStatus));
     unsubs.push(window.api.onClipsChanged(setClips));
+    unsubs.push(
+      window.api.onHotkeysFailed((accelerators) => {
+        toast.error(
+          `Tastenkürzel belegt: ${accelerators.map((item) => formatHotkey(item)).join(", ")}`,
+        );
+      }),
+    );
+    unsubs.push(
+      window.api.onHotkeyClip(({ seconds, result }) => {
+        if (result.ok) {
+          setLastSeconds(seconds);
+          selectNewestRef.current = true;
+          setClipMessage({
+            text: `Die letzten ${formatDuration(seconds)} wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
+            kind: "ok",
+          });
+          toast.success("Clip gespeichert.");
+        } else {
+          setClipMessage({ text: result.error, kind: "err" });
+          toast.error(result.error);
+        }
+      }),
+    );
 
     return () => {
       cancelled = true;
+      loader.end();
       for (const unsub of unsubs) unsub();
     };
   }, []);
@@ -82,8 +118,14 @@ export function App() {
     selectNewestRef.current = false;
   }, [clips]);
 
+  useEffect(() => {
+    if (config?.ONBOARDING_HIDDEN && view === "onboarding") {
+      setView("library");
+    }
+  }, [config?.ONBOARDING_HIDDEN, view]);
+
   async function saveConfig(next: AppConfigDto): Promise<AppConfigDto> {
-    const saved = await window.api.saveConfig(next);
+    const saved = await loader.wrap(() => window.api.saveConfig(next));
     setConfig(saved);
     return saved;
   }
@@ -92,7 +134,7 @@ export function App() {
     setClippingBusy(true);
     setClipMessage(null);
     try {
-      const result = await window.api.createClip(seconds);
+      const result = await loader.wrap(() => window.api.createClip(seconds));
       if (result.ok) {
         setLastSeconds(seconds);
         selectNewestRef.current = true;
@@ -121,15 +163,17 @@ export function App() {
   }
 
   async function renameClip(id: string, name: string): Promise<void> {
-    const result = await window.api.renameClip(id, name);
-    if (!result.ok) {
-      setClipMessage({ text: result.error, kind: "err" });
-      toast.error(result.error);
-      setClips(await window.api.listClips());
-      return;
-    }
-    setClips((prev) => prev.map((c) => (c.id === id ? result.clip : c)));
-    toast.success("Clip umbenannt.");
+    await loader.wrap(async () => {
+      const result = await window.api.renameClip(id, name);
+      if (!result.ok) {
+        setClipMessage({ text: result.error, kind: "err" });
+        toast.error(result.error);
+        setClips(await window.api.listClips());
+        return;
+      }
+      setClips((prev) => prev.map((c) => (c.id === id ? result.clip : c)));
+      toast.success("Clip umbenannt.");
+    });
   }
 
   function revealClip(id: string): void {
@@ -149,21 +193,23 @@ export function App() {
 
   async function deleteClip(id: string): Promise<void> {
     setSelectedId(id);
-    const result = await window.api.deleteClip(id);
-    if (!result.ok) {
-      const text = result.error ?? "Clip konnte nicht gelöscht werden";
-      setClipMessage({ text, kind: "err" });
-      toast.error(text);
-      setClips(await window.api.listClips());
-      return;
-    }
-    setClips((prev) => prev.filter((c) => c.id !== id));
-    setSelectedId((current) => {
-      if (current !== id) return current;
-      const remaining = clips.filter((c) => c.id !== id);
-      return remaining[0]?.id ?? null;
+    await loader.wrap(async () => {
+      const result = await window.api.deleteClip(id);
+      if (!result.ok) {
+        const text = result.error ?? "Clip konnte nicht gelöscht werden";
+        setClipMessage({ text, kind: "err" });
+        toast.error(text);
+        setClips(await window.api.listClips());
+        return;
+      }
+      setClips((prev) => prev.filter((c) => c.id !== id));
+      setSelectedId((current) => {
+        if (current !== id) return current;
+        const remaining = clips.filter((c) => c.id !== id);
+        return remaining[0]?.id ?? null;
+      });
+      toast.success("Clip gelöscht.");
     });
-    toast.success("Clip gelöscht.");
   }
 
   if (!config) {
@@ -224,6 +270,7 @@ export function App() {
             setFilter("untitled");
           }}
           onOpenCutter={() => void openCutter()}
+          showOnboarding={!config.ONBOARDING_HIDDEN}
         />
 
         <SidebarInset className="min-h-0 overflow-hidden">
@@ -255,6 +302,19 @@ export function App() {
                   onCut={(id) => void openCutter(id)}
                 />
               </div>
+            ) : view === "onboarding" ? (
+              <OnboardingPage
+                config={config}
+                obsStatus={obsStatus}
+                busy={clippingBusy}
+                onCreateClip={(seconds) => void createClip(seconds)}
+                onGoToLibrary={() => setView("library")}
+                onGoToSettings={setView}
+                onHide={async () => {
+                  await saveConfig({ ...config, ONBOARDING_HIDDEN: true });
+                  setView("library");
+                }}
+              />
             ) : (
               <SettingsPanel
                 section={view}

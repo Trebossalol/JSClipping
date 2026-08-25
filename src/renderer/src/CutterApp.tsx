@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { ClipCutter } from "./components/ClipCutter";
 import { CutterClipPicker } from "./components/CutterClipPicker";
+import { useTopLoader } from "./components/TopLoadingBar";
+import logoUrl from "../../../resources/logo.svg";
 
 export function isCutterRoute(): boolean {
   const hash = window.location.hash.replace(/^#/, "");
@@ -57,6 +59,7 @@ function CutterTab({
   onClose: () => void;
   onSave: (ranges: CutRange[], overwrite?: boolean) => void;
 }) {
+  const loader = useTopLoader();
   const [fetched, setFetched] = useState<ClipRecord | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -67,18 +70,25 @@ function CutterTab({
       return;
     }
     let cancelled = false;
-    void window.api.getClip(clipId).then((next) => {
-      if (cancelled) return;
-      if (!next || next.missing) {
-        setLoadError("Clip nicht gefunden oder Datei fehlt.");
-        setFetched(null);
-        return;
-      }
-      setLoadError(null);
-      setFetched(next);
-    });
+    loader.begin();
+    void window.api
+      .getClip(clipId)
+      .then((next) => {
+        if (cancelled) return;
+        if (!next || next.missing) {
+          setLoadError("Clip nicht gefunden oder Datei fehlt.");
+          setFetched(null);
+          return;
+        }
+        setLoadError(null);
+        setFetched(next);
+      })
+      .finally(() => {
+        if (!cancelled) loader.end();
+      });
     return () => {
       cancelled = true;
+      loader.end();
     };
   }, [clip, clipId]);
 
@@ -122,6 +132,7 @@ function CutterTab({
 }
 
 export function CutterApp() {
+  const loader = useTopLoader();
   const initialId = parseCutClipId();
   const [clips, setClips] = useState<ClipRecord[]>([]);
   const [clipsReady, setClipsReady] = useState(false);
@@ -157,11 +168,17 @@ export function CutterApp() {
     let cancelled = false;
     const unsubs: Array<() => void> = [];
 
-    void window.api.listClips().then((list) => {
-      if (cancelled) return;
-      setClips(list);
-      setClipsReady(true);
-    });
+    loader.begin();
+    void window.api
+      .listClips()
+      .then((list) => {
+        if (cancelled) return;
+        setClips(list);
+        setClipsReady(true);
+      })
+      .finally(() => {
+        if (!cancelled) loader.end();
+      });
     unsubs.push(
       window.api.onClipsChanged((list) => {
         setClips(list);
@@ -178,6 +195,7 @@ export function CutterApp() {
 
     return () => {
       cancelled = true;
+      loader.end();
       for (const unsub of unsubs) unsub();
     };
   }, []);
@@ -240,7 +258,9 @@ export function CutterApp() {
       return next;
     });
     try {
-      const result = await window.api.cutClip(clipId, ranges, overwrite);
+      const result = await loader.wrap(() =>
+        window.api.cutClip(clipId, ranges, overwrite),
+      );
       if (!result.ok) {
         setCutErrors((prev) => ({ ...prev, [clipId]: result.error }));
         toast.error(result.error);
@@ -261,8 +281,13 @@ export function CutterApp() {
         <Empty className="min-h-0 flex-1 border-0">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <ScissorsIcon />
+              <img
+                src={logoUrl}
+                alt=""
+                className="size-8 rounded-lg"
+              />
             </EmptyMedia>
+
             <EmptyTitle>Clip schneiden</EmptyTitle>
             <EmptyDescription>
               {availableClips.length === 0

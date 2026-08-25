@@ -3,7 +3,8 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { formatDuration } from "@/format";
-import type { ObsStatus } from "@shared/ipc";
+import { formatHotkey } from "@shared/hotkeys";
+import type { ClipPreset, ObsStatus } from "@shared/ipc";
 import { ClockIcon } from "lucide-react";
 import {
   clipPresetsFromSeconds,
@@ -15,7 +16,7 @@ interface CommandBarProps {
   obsStatus: ObsStatus | null;
   busy: boolean;
   lastSeconds: number | null;
-  clipPresets: number[];
+  clipPresets: ClipPreset[];
   onCreate: (seconds: number) => void;
 }
 
@@ -26,7 +27,12 @@ export function CommandBar({
   clipPresets,
   onCreate,
 }: CommandBarProps) {
-  const presets = clipPresetsFromSeconds(clipPresets);
+  const presets = clipPresetsFromSeconds(
+    clipPresets.map((preset) => preset.seconds),
+  );
+  const hotkeys = new Map(
+    clipPresets.map((preset) => [preset.seconds, preset.hotkey]),
+  );
   const { connected, replayOff, canClip } = getClipAvailability(
     obsStatus,
     busy,
@@ -50,6 +56,8 @@ export function CommandBar({
             const replayMax = obsStatus.replayMaxSeconds ?? null;
             const overBuffer = replayMax != null && seconds > replayMax;
             const active = lastSeconds === seconds;
+            const hotkey = hotkeys.get(seconds);
+            const hotkeyLabel = hotkey ? formatHotkey(hotkey) : null;
             return (
               <Button
                 key={seconds}
@@ -60,12 +68,19 @@ export function CommandBar({
                 title={
                   overBuffer && replayMax != null
                     ? `Länger als der OBS-Puffer (${formatDuration(replayMax)})`
-                    : (disabledReason ?? hint)
+                    : [disabledReason ?? hint, hotkeyLabel]
+                        .filter(Boolean)
+                        .join(" · ")
                 }
                 onClick={() => onCreate(seconds)}
               >
                 <ClockIcon data-icon="inline-start" />
                 {label}
+                {hotkeyLabel ? (
+                  <span className={active ? "opacity-80" : "text-muted-foreground"}>
+                    {hotkeyLabel}
+                  </span>
+                ) : null}
               </Button>
             );
           })}

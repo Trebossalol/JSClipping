@@ -2,6 +2,7 @@ import { APP_NAME } from "@shared/app.config";
 import {
   ChevronRightIcon,
   FilePenIcon,
+  GraduationCapIcon,
   LibraryIcon,
   ScissorsIcon,
   SettingsIcon,
@@ -37,10 +38,10 @@ export const SETTINGS_SECTIONS = [
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];
-export type AppView = "library" | SettingsSection;
+export type AppView = "library" | "onboarding" | SettingsSection;
 
 export function isSettingsView(view: AppView): view is SettingsSection {
-  return view !== "library";
+  return view !== "library" && view !== "onboarding";
 }
 
 interface AppSidebarProps {
@@ -49,6 +50,7 @@ interface AppSidebarProps {
   untitledCount: number;
   onUntitled: () => void;
   onOpenCutter: () => void;
+  showOnboarding: boolean;
 }
 
 export function AppSidebar({
@@ -57,6 +59,7 @@ export function AppSidebar({
   untitledCount,
   onUntitled,
   onOpenCutter,
+  showOnboarding,
 }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon">
@@ -105,6 +108,18 @@ export function AppSidebar({
                   <span>Schneiden</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {showOnboarding ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={view === "onboarding"}
+                    tooltip="Einrichtung"
+                    onClick={() => onViewChange("onboarding")}
+                  >
+                    <GraduationCapIcon />
+                    <span>Einrichtung</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
               <Collapsible
                 asChild
                 defaultOpen

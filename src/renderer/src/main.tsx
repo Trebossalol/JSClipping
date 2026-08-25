@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { CutterApp, isCutterRoute } from "./CutterApp";
+import { TopLoadingBar } from "./components/TopLoadingBar";
 import "./index.css";
 
 const root = document.getElementById("root");
@@ -11,6 +12,8 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    {isCutterRoute() ? <CutterApp /> : <App />}
+    <TopLoadingBar>
+      {isCutterRoute() ? <CutterApp /> : <App />}
+    </TopLoadingBar>
   </StrictMode>,
 );

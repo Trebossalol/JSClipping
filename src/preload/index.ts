@@ -7,6 +7,7 @@ import {
   type CutClipResult,
   type CutRange,
   type ElectronApi,
+  type HotkeyClipPayload,
   type ObsStatus,
   type RenameClipResult,
   type StorageInfoResult,
@@ -65,6 +66,30 @@ const api: ElectronApi = {
     ipcRenderer.invoke(IpcChannels.getStorage),
   startObs: () => ipcRenderer.invoke(IpcChannels.startObs),
   stopObs: () => ipcRenderer.invoke(IpcChannels.stopObs),
+  onHotkeysFailed: (callback: (accelerators: string[]) => void) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      accelerators: string[],
+    ): void => {
+      callback(accelerators);
+    };
+    ipcRenderer.on(IpcChannels.hotkeysFailed, listener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.hotkeysFailed, listener);
+    };
+  },
+  onHotkeyClip: (callback: (payload: HotkeyClipPayload) => void) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      payload: HotkeyClipPayload,
+    ): void => {
+      callback(payload);
+    };
+    ipcRenderer.on(IpcChannels.hotkeyClip, listener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.hotkeyClip, listener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);
