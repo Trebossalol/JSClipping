@@ -158,6 +158,7 @@ function TimeField({ value, disabled, ariaLabel, className, onCommit }: TimeFiel
 interface ClipCutterProps {
   clip: ClipRecord;
   busy: boolean;
+  active?: boolean;
   error?: string | null;
   onCancel: () => void;
   onSave: (ranges: CutRange[]) => void;
@@ -166,6 +167,7 @@ interface ClipCutterProps {
 export function ClipCutter({
   clip,
   busy,
+  active = true,
   error,
   onCancel,
   onSave,
@@ -203,7 +205,12 @@ export function ClipCutter({
     totalKeep >= MIN_CUT_RANGE_SECONDS;
 
   useEffect(() => {
+    if (!active) {
+      videoRef.current?.pause();
+      return;
+    }
     function onKey(e: KeyboardEvent): void {
+      if (document.querySelector('[data-slot="dialog-content"]')) return;
       if (e.key === "Escape" && !busy) {
         onCancel();
         return;
@@ -241,7 +248,7 @@ export function ClipCutter({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onCancel]);
+  }, [active, busy, onCancel]);
 
   useEffect(() => {
     function onMove(e: PointerEvent): void {

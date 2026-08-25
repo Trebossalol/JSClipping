@@ -47,6 +47,7 @@ interface AppSidebarProps {
   onViewChange: (view: AppView) => void;
   untitledCount: number;
   onUntitled: () => void;
+  onOpenCutter: () => void;
 }
 
 export function AppSidebar({
@@ -54,6 +55,7 @@ export function AppSidebar({
   onViewChange,
   untitledCount,
   onUntitled,
+  onOpenCutter,
 }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon">
@@ -90,6 +92,15 @@ export function AppSidebar({
                 {untitledCount > 0 ? (
                   <SidebarMenuBadge>{untitledCount}</SidebarMenuBadge>
                 ) : null}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Schneiden"
+                  onClick={onOpenCutter}
+                >
+                  <ScissorsIcon />
+                  <span>Schneiden</span>
+                </SidebarMenuButton>
               </SidebarMenuItem>
               <Collapsible
                 asChild

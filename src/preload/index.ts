@@ -45,7 +45,16 @@ const api: ElectronApi = {
   cutClip: (id: string, ranges: CutRange[]): Promise<CutClipResult> =>
     ipcRenderer.invoke(IpcChannels.cutClip, id, ranges),
   getClip: (id: string) => ipcRenderer.invoke(IpcChannels.getClip, id),
-  openCutter: (id: string) => ipcRenderer.invoke(IpcChannels.openCutter, id),
+  openCutter: (id?: string) => ipcRenderer.invoke(IpcChannels.openCutter, id),
+  onCutterOpenClip: (callback: (id: string) => void) => {
+    const listener = (_event: IpcRendererEvent, id: string): void => {
+      callback(id);
+    };
+    ipcRenderer.on(IpcChannels.cutterOpenClip, listener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.cutterOpenClip, listener);
+    };
+  },
   openClip: (id: string) => ipcRenderer.invoke(IpcChannels.openClip, id),
   revealClip: (id: string) => ipcRenderer.invoke(IpcChannels.revealClip, id),
   getStorage: (): Promise<StorageInfoResult> =>

@@ -137,8 +137,8 @@ export function App() {
     void window.api.revealClip(id);
   }
 
-  async function openCutter(id: string): Promise<void> {
-    setSelectedId(id);
+  async function openCutter(id?: string): Promise<void> {
+    if (id) setSelectedId(id);
     const result = await window.api.openCutter(id);
     if (!result.ok) {
       const text = result.error ?? "Schneidefenster konnte nicht geöffnet werden.";
@@ -223,6 +223,7 @@ export function App() {
             setView("library");
             setFilter("untitled");
           }}
+          onOpenCutter={() => void openCutter()}
         />
 
         <SidebarInset className="min-h-0 overflow-hidden">

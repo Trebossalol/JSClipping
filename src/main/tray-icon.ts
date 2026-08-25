@@ -1,5 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
 import zlib from "node:zlib";
 import { nativeImage, type NativeImage } from "electron";
+import { getResourcesDir } from "../shared/paths.js";
 
 function crc32(buf: Buffer): number {
   let c = 0xffff_ffff;
@@ -294,9 +297,53 @@ function fromPng(png: Buffer): NativeImage {
   return nativeImage.createFromBuffer(png);
 }
 
+function logoPath(): string {
+  return path.join(getResourcesDir(), "logo.png");
+}
+
+function loadLogo(): NativeImage | null {
+  const file = logoPath();
+  if (!fs.existsSync(file)) return null;
+  const img = nativeImage.createFromPath(file);
+  return img.isEmpty() ? null : img;
+}
+
+/** Electron `toBitmap()` is BGRA on little-endian (Windows). */
+function bitmapToRgba(img: NativeImage): { rgba: Buffer; size: number } {
+  const { width, height } = img.getSize();
+  const bgra = img.toBitmap();
+  const size = Math.min(width, height);
+  const rgba = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const src = (y * width + x) * 4;
+      const dst = (y * size + x) * 4;
+      rgba[dst] = bgra[src + 2]!;
+      rgba[dst + 1] = bgra[src + 1]!;
+      rgba[dst + 2] = bgra[src]!;
+      rgba[dst + 3] = bgra[src + 3]!;
+    }
+  }
+  return { rgba, size };
+}
+
+const TRAY_SIZE = 32;
+
 /** badgeCount: 0 = no badge, 1–9 = digit, >=10 = "9+" */
 function buildTrayIcon(badgeCount: number): NativeImage {
-  return fromPng(renderScissorsPng(32, badgeCount));
+  const logo = loadLogo();
+  if (!logo) {
+    return fromPng(renderScissorsPng(TRAY_SIZE, badgeCount));
+  }
+  const resized = logo.resize({
+    width: TRAY_SIZE,
+    height: TRAY_SIZE,
+    quality: "best",
+  });
+  if (badgeCount <= 0) return resized;
+  const { rgba, size } = bitmapToRgba(resized);
+  drawBadge(rgba, size, badgeCount);
+  return fromPng(encodePng(size, size, rgba));
 }
 
 const trayCache = new Map<number, NativeImage>();
@@ -314,7 +361,7 @@ export function getTrayIcon(unnamedCount: number): NativeImage {
 
 export function getAppIcon(): NativeImage {
   if (!appIcon) {
-    appIcon = fromPng(renderScissorsPng(256));
+    appIcon = loadLogo() ?? fromPng(renderScissorsPng(256));
   }
   return appIcon;
 }

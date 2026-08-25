@@ -23,6 +23,8 @@ extraResources:
     to: ffmpeg
     filter:
       - "*.exe"
+  - from: resources/logo.png
+    to: logo.png
 win:
   icon: resources/logo.png
   executableName: EasyClip

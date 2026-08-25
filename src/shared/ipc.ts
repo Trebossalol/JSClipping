@@ -81,6 +81,7 @@ export const IpcChannels = {
   cutClip: "clips:cut",
   getClip: "clips:get",
   openCutter: "clips:open-cutter",
+  cutterOpenClip: "cutter:open-clip",
   openClip: "clips:open",
   revealClip: "clips:reveal",
   getStorage: "storage:get",
@@ -117,7 +118,8 @@ export interface ElectronApi {
   deleteClip(id: string): Promise<{ ok: boolean; error?: string }>;
   cutClip(id: string, ranges: CutRange[]): Promise<CutClipResult>;
   getClip(id: string): Promise<ClipRecord | null>;
-  openCutter(id: string): Promise<{ ok: boolean; error?: string }>;
+  openCutter(id?: string): Promise<{ ok: boolean; error?: string }>;
+  onCutterOpenClip(callback: (id: string) => void): () => void;
   openClip(id: string): Promise<{ ok: boolean; error?: string }>;
   revealClip(id: string): Promise<{ ok: boolean; error?: string }>;
   getStorage(): Promise<StorageInfoResult>;

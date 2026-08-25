@@ -100,7 +100,6 @@ app.setAppUserModelId(APP_USER_MODEL_ID);
 
 let mainWindow: BrowserWindow | null = null;
 let cutterWindow: BrowserWindow | null = null;
-let cutterClipId: string | null = null;
 let appDataDir = "";
 let config: AppConfig;
 let obs = new OBSWebSocket();
@@ -361,10 +360,12 @@ async function ensureReplayBufferStarted(): Promise<void> {
 }
 
 function sendClipsChanged(): void {
-  mainWindow?.webContents.send(
-    IpcChannels.clipsChanged,
-    withClipUrls(listClips(appDataDir)),
-  );
+  const payload = withClipUrls(listClips(appDataDir));
+  for (const win of [mainWindow, cutterWindow]) {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IpcChannels.clipsChanged, payload);
+    }
+  }
   updateTrayBadge();
 }
 
@@ -474,9 +475,6 @@ async function handleRemovedVideo(filePath: string): Promise<void> {
   if (!isVideoFile(filePath) || isIgnoredPath(filePath)) return;
   const removed = removeClipByFilePath(appDataDir, filePath);
   if (!removed) return;
-  if (cutterClipId === removed.id && cutterWindow && !cutterWindow.isDestroyed()) {
-    cutterWindow.close();
-  }
   sendClipsChanged();
 }
 
@@ -530,42 +528,39 @@ function cutterHash(id: string): string {
   return `cut/${encodeURIComponent(id)}`;
 }
 
-function openCutterWindow(id: string): { ok: true } | { ok: false; error: string } {
-  const clip = findClip(appDataDir, id);
-  if (!clip) return { ok: false, error: "Clip nicht gefunden." };
-  if (clip.missing || !clip.filePath || !fs.existsSync(clip.filePath)) {
-    return { ok: false, error: "Die Clip-Datei fehlt." };
+function openCutterWindow(id?: string): { ok: true } | { ok: false; error: string } {
+  if (id) {
+    const clip = findClip(appDataDir, id);
+    if (!clip) return { ok: false, error: "Clip nicht gefunden." };
+    if (clip.missing || !clip.filePath || !fs.existsSync(clip.filePath)) {
+      return { ok: false, error: "Die Clip-Datei fehlt." };
+    }
   }
 
-  const hash = cutterHash(id);
   if (cutterWindow && !cutterWindow.isDestroyed()) {
-    if (cutterClipId !== id) {
-      cutterClipId = id;
-      cutterWindow.setTitle(`Schneiden — ${clip.name}`);
-      loadRenderer(cutterWindow, hash);
-    }
     cutterWindow.show();
     if (cutterWindow.isMinimized()) cutterWindow.restore();
     cutterWindow.focus();
+    if (id) {
+      cutterWindow.webContents.send(IpcChannels.cutterOpenClip, id);
+    }
     return { ok: true };
   }
 
   cutterWindow = new BrowserWindow({
-    width: 920,
-    height: 840,
+    width: 980,
+    height: 860,
     minWidth: 720,
     minHeight: 640,
-    title: `Schneiden — ${clip.name}`,
+    title: "Schneiden",
     icon: getAppIcon(),
     show: true,
     autoHideMenuBar: true,
     webPreferences: { ...windowPrefs },
   });
-  cutterClipId = id;
-  loadRenderer(cutterWindow, hash);
+  loadRenderer(cutterWindow, id ? cutterHash(id) : "cut");
   cutterWindow.on("closed", () => {
     cutterWindow = null;
-    cutterClipId = null;
   });
   return { ok: true };
 }
@@ -782,8 +777,8 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IpcChannels.openCutter,
-    (_event, id: string): { ok: boolean; error?: string } => {
-      return openCutterWindow(id);
+    (_event, id?: string): { ok: boolean; error?: string } => {
+      return openCutterWindow(typeof id === "string" ? id : undefined);
     },
   );
 
@@ -804,9 +799,6 @@ function registerIpc(): void {
     async (_event, id: string): Promise<{ ok: boolean; error?: string }> => {
       const result = deleteClip(appDataDir, id);
       if (result.ok) {
-        if (cutterClipId === id && cutterWindow && !cutterWindow.isDestroyed()) {
-          cutterWindow.close();
-        }
         sendClipsChanged();
       }
       return result;
