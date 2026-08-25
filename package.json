@@ -1,8 +1,8 @@
 {
-  "name": "obs-replay-clip",
+  "name": "eas-clip",
   "version": "1.0.0",
-  "description": "Save + trim OBS replay buffer clips to a chosen length via obs-websocket",
-  "author": "Easy Clip",
+  "description": "Easy Clip is a simple tool to clip OBS replay buffer clips to a chosen length.",
+  "author": "Trebossa",
   "license": "MIT",
   "main": "./out/main/index.js",
   "type": "module",

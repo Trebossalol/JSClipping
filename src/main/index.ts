@@ -14,6 +14,7 @@ import {
   net,
   Notification,
   protocol,
+  screen,
   shell,
 } from "electron";
 import { OBSWebSocket } from "obs-websocket-js";
@@ -74,8 +75,8 @@ import {
 } from "./tray.js";
 import { getAppIcon } from "./tray-icon.js";
 import {
-  registerPresetHotkeys,
-  unregisterPresetHotkeys,
+  registerAppHotkeys,
+  unregisterAppHotkeys,
 } from "./hotkeys.js";
 import {
   setAppAutostartEnabled,
@@ -107,6 +108,8 @@ app.setAppUserModelId(APP_USER_MODEL_ID);
 
 let mainWindow: BrowserWindow | null = null;
 let cutterWindow: BrowserWindow | null = null;
+let quickActionWindow: BrowserWindow | null = null;
+let ignoreQuickActionBlur = false;
 let appDataDir = "";
 let config: AppConfig;
 let obs = new OBSWebSocket();
@@ -321,7 +324,12 @@ function startObsProcessPoll(): void {
 }
 
 function sendObsStatus(): void {
-  mainWindow?.webContents.send(IpcChannels.obsStatusChanged, currentObsStatus());
+  const status = currentObsStatus();
+  for (const win of [mainWindow, quickActionWindow]) {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IpcChannels.obsStatusChanged, status);
+    }
+  }
 }
 
 async function refreshReplayBuffer(): Promise<void> {
@@ -598,6 +606,95 @@ function createWindow(): void {
   });
 }
 
+const QUICK_ACTION_WIDTH = 360;
+const QUICK_ACTION_HEIGHT = 420;
+
+function hideQuickActionWindow(): void {
+  if (!quickActionWindow || quickActionWindow.isDestroyed()) return;
+  if (quickActionWindow.isVisible()) quickActionWindow.hide();
+}
+
+function positionQuickActionWindow(win: BrowserWindow): void {
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
+  const { x, y, width, height } = display.workArea;
+  win.setPosition(
+    Math.round(x + (width - QUICK_ACTION_WIDTH) / 2),
+    Math.round(y + height * 0.22),
+  );
+}
+
+function presentQuickActionWindow(win: BrowserWindow): void {
+  ignoreQuickActionBlur = true;
+  positionQuickActionWindow(win);
+  win.setAlwaysOnTop(true, "screen-saver");
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  win.show();
+  win.moveTop();
+  win.focus();
+  win.webContents.focus();
+  app.focus({ steal: true });
+  if (!win.isDestroyed()) {
+    win.webContents.send(IpcChannels.quickActionOpened);
+  }
+  setTimeout(() => {
+    ignoreQuickActionBlur = false;
+  }, 350);
+}
+
+function createQuickActionWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: QUICK_ACTION_WIDTH,
+    height: QUICK_ACTION_HEIGHT,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    frame: false,
+    transparent: true,
+    show: false,
+    focusable: true,
+    hasShadow: true,
+    backgroundColor: "#00000000",
+    title: APP_NAME,
+    icon: getAppIcon(),
+    webPreferences: { ...windowPrefs },
+  });
+  loadRenderer(win, "quick");
+  win.on("blur", () => {
+    if (ignoreQuickActionBlur || isAppQuitting()) return;
+    hideQuickActionWindow();
+  });
+  win.on("close", (event) => {
+    if (!isAppQuitting()) {
+      event.preventDefault();
+      hideQuickActionWindow();
+    }
+  });
+  win.on("closed", () => {
+    if (quickActionWindow === win) quickActionWindow = null;
+  });
+  return win;
+}
+
+function toggleQuickActionWindow(): void {
+  if (quickActionWindow && !quickActionWindow.isDestroyed()) {
+    if (quickActionWindow.isVisible()) {
+      hideQuickActionWindow();
+      return;
+    }
+    presentQuickActionWindow(quickActionWindow);
+    return;
+  }
+  quickActionWindow = createQuickActionWindow();
+  quickActionWindow.once("ready-to-show", () => {
+    if (!quickActionWindow || quickActionWindow.isDestroyed()) return;
+    presentQuickActionWindow(quickActionWindow);
+  });
+}
+
 async function runCreateClip(
   seconds: number,
   options?: { log?: boolean },
@@ -669,8 +766,15 @@ function windowCanShowToast(): boolean {
 }
 
 function syncPresetHotkeys(notify: boolean): string[] {
-  const failed = registerPresetHotkeys(config.CLIP_PRESETS, (seconds) => {
-    void handlePresetHotkey(seconds);
+  const failed = registerAppHotkeys({
+    presets: config.CLIP_PRESETS,
+    quickActionHotkey: config.QUICK_ACTION_HOTKEY,
+    onClip: (seconds) => {
+      void handlePresetHotkey(seconds);
+    },
+    onQuickAction: () => {
+      toggleQuickActionWindow();
+    },
   });
   if (notify && failed.length > 0) {
     sendToMainWindow(IpcChannels.hotkeysFailed, failed);
@@ -808,6 +912,18 @@ function registerIpc(): void {
     IpcChannels.createClip,
     async (_event, seconds: number): Promise<CreateClipResult> => {
       return runCreateClip(seconds);
+    },
+  );
+
+  ipcMain.handle(IpcChannels.closeQuickAction, (): void => {
+    hideQuickActionWindow();
+  });
+
+  ipcMain.handle(
+    IpcChannels.selectQuickAction,
+    (_event, seconds: number): void => {
+      hideQuickActionWindow();
+      void handlePresetHotkey(seconds);
     },
   );
 
@@ -1027,7 +1143,10 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   markAppQuitting();
   intentionalDisconnect = true;
-  unregisterPresetHotkeys();
+  unregisterAppHotkeys();
+  if (quickActionWindow && !quickActionWindow.isDestroyed()) {
+    quickActionWindow.close();
+  }
   if (obsProcessPoll) {
     clearInterval(obsProcessPoll);
     obsProcessPoll = null;

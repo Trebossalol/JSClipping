@@ -23,5 +23,6 @@ export const DEFAULT_USER_CONFIG = {
     seconds,
     hotkey: null as string | null,
   })),
+  QUICK_ACTION_HOTKEY: null as string | null,
   ONBOARDING_HIDDEN: false,
 };

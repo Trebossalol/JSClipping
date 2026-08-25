@@ -56,6 +56,7 @@ export interface AppConfigDto {
   CLIP_OUTPUT_DIR: string;
   AUTOSTART: boolean;
   CLIP_PRESETS: ClipPreset[];
+  QUICK_ACTION_HOTKEY: string | null;
   ONBOARDING_HIDDEN: boolean;
 }
 
@@ -120,6 +121,9 @@ export const IpcChannels = {
   stopObs: "obs:stop",
   hotkeysFailed: "hotkeys:failed",
   hotkeyClip: "clip:hotkey",
+  quickActionOpened: "quick-action:opened",
+  closeQuickAction: "quick-action:close",
+  selectQuickAction: "quick-action:select",
 } as const;
 
 export type CreateClipResult =
@@ -169,6 +173,9 @@ export interface ElectronApi {
   stopObs(): Promise<{ ok: boolean; error?: string }>;
   onHotkeysFailed(callback: (accelerators: string[]) => void): () => void;
   onHotkeyClip(callback: (payload: HotkeyClipPayload) => void): () => void;
+  onQuickActionOpened(callback: () => void): () => void;
+  closeQuickAction(): Promise<void>;
+  selectQuickAction(seconds: number): Promise<void>;
 }
 
 declare global {

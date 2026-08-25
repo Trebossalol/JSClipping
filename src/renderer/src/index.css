@@ -128,4 +128,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  html.quick-action,
+  html.quick-action body,
+  html.quick-action #root {
+    background: transparent;
+  }
 }

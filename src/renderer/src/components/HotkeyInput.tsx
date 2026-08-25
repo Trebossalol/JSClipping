@@ -5,6 +5,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { cn } from "@/lib/utils";
 import {
   acceleratorFromKeyboardEvent,
   formatHotkey,
@@ -15,6 +16,7 @@ interface HotkeyInputProps {
   id: string;
   value: string | null;
   invalid?: boolean;
+  className?: string;
   onChange: (value: string | null) => void;
 }
 
@@ -22,6 +24,7 @@ export function HotkeyInput({
   id,
   value,
   invalid = false,
+  className,
   onChange,
 }: HotkeyInputProps) {
   const [recording, setRecording] = useState(false);
@@ -64,7 +67,7 @@ export function HotkeyInput({
       : "";
 
   return (
-    <InputGroup className="w-44">
+    <InputGroup className={cn("w-44", className)}>
       <InputGroupAddon>
         <KeyboardIcon />
       </InputGroupAddon>

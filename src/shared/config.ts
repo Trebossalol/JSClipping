@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as z from "zod";
 import { DEFAULT_USER_CONFIG, MAX_CLIP_PRESETS } from "./app.config.js";
+import { normalizeHotkey } from "./hotkeys.js";
 import { normalizeClipPresets } from "./ipc.js";
 import { ensureDir, getAppDataDir } from "./paths.js";
 
@@ -11,6 +12,10 @@ export const ConfigSchema = z.object({
   CLIP_OUTPUT_DIR: z.string().min(1),
   AUTOSTART: z.boolean().default(false),
   ONBOARDING_HIDDEN: z.boolean().default(false),
+  QUICK_ACTION_HOTKEY: z.preprocess(
+    (value) => (typeof value === "string" ? normalizeHotkey(value) : null),
+    z.string().nullable(),
+  ),
   CLIP_PRESETS: z.preprocess(
     (value) => normalizeClipPresets(value),
     z

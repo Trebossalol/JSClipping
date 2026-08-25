@@ -27,7 +27,7 @@ import {
   RecentClips,
   type ClipFilter,
 } from "./components/RecentClips";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { useTopLoader } from "./components/TopLoadingBar";
 
 function untitledCount(clips: ClipRecord[]): number {

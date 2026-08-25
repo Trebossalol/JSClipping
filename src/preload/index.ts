@@ -90,6 +90,18 @@ const api: ElectronApi = {
       ipcRenderer.removeListener(IpcChannels.hotkeyClip, listener);
     };
   },
+  onQuickActionOpened: (callback: () => void) => {
+    const listener = (): void => {
+      callback();
+    };
+    ipcRenderer.on(IpcChannels.quickActionOpened, listener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.quickActionOpened, listener);
+    };
+  },
+  closeQuickAction: () => ipcRenderer.invoke(IpcChannels.closeQuickAction),
+  selectQuickAction: (seconds: number) =>
+    ipcRenderer.invoke(IpcChannels.selectQuickAction, seconds),
 };
 
 contextBridge.exposeInMainWorld("api", api);
