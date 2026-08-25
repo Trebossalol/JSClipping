@@ -129,7 +129,7 @@ export function CutterApp() {
     initialId ? [initialId] : [],
   );
   const [activeId, setActiveId] = useState<string | null>(initialId);
-  const [pickerOpen, setPickerOpen] = useState(() => initialId == null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [cutErrors, setCutErrors] = useState<Record<string, string>>({});
 
@@ -181,6 +181,13 @@ export function CutterApp() {
       for (const unsub of unsubs) unsub();
     };
   }, []);
+
+  useEffect(() => {
+    if (!clipsReady || initialId != null) return;
+    if (tabIds.length > 0) return;
+    if (!clips.some((clip) => !clip.missing)) return;
+    setPickerOpen(true);
+  }, [clipsReady]);
 
   useEffect(() => {
     if (!clipsReady) return;
@@ -299,7 +306,6 @@ export function CutterApp() {
                       }}
                     >
                       <XIcon />
-                      <span className="sr-only">Tab schließen</span>
                     </Button>
                   </div>
                 );

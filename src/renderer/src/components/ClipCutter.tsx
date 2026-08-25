@@ -140,7 +140,7 @@ function TimeField({ value, disabled, ariaLabel, className, onCommit }: TimeFiel
       disabled={disabled}
       aria-label={ariaLabel}
       className={cn(
-        "h-7 w-[4.75rem] px-1.5 text-center font-mono text-xs",
+        "h-7 w-19 px-1.5 text-center font-mono text-xs",
         className,
       )}
       onChange={(e) => setText(e.target.value)}
@@ -443,215 +443,215 @@ export function ClipCutter({
       </div>
 
       <div className="shrink-0 px-4 pt-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={togglePlay}
+            disabled={duration <= 0}
+          >
+            {playing ? (
+              <PauseIcon data-icon="inline-start" />
+            ) : (
+              <PlayIcon data-icon="inline-start" />
+            )}
+            {playing ? "Pause" : "Abspielen"}
+          </Button>
+          <p className="font-mono text-xs text-muted-foreground">
+            {formatTimecode(currentTime)} / {formatTimecode(duration)}
+          </p>
+          <div className="ml-auto flex flex-wrap gap-1.5">
             <Button
               type="button"
-              size="sm"
+              size="xs"
               variant="secondary"
-              onClick={togglePlay}
-              disabled={duration <= 0}
+              disabled={busy || duration <= 0}
+              title="An der Abspielposition teilen (S)"
+              onClick={() => applySplit(currentTime)}
             >
-              {playing ? (
-                <PauseIcon data-icon="inline-start" />
-              ) : (
-                <PlayIcon data-icon="inline-start" />
-              )}
-              {playing ? "Pause" : "Abspielen"}
+              <SplitIcon data-icon="inline-start" />
+              Teilen (S)
             </Button>
-            <p className="font-mono text-xs text-muted-foreground">
-              {formatTimecode(currentTime)} / {formatTimecode(duration)}
-            </p>
-            <div className="ml-auto flex flex-wrap gap-1.5">
-              <Button
-                type="button"
-                size="xs"
-                variant="secondary"
-                disabled={busy || duration <= 0}
-                title="An der Abspielposition teilen (S)"
-                onClick={() => applySplit(currentTime)}
-              >
-                <SplitIcon data-icon="inline-start" />
-                Teilen (S)
-              </Button>
-              <Button
-                type="button"
-                size="xs"
-                variant="outline"
-                disabled={busy || !selected || ranges.length <= 1}
-                title="Ausgewählten Abschnitt entfernen (Entf)"
-                onClick={removeSelected}
-              >
-                <Trash2Icon data-icon="inline-start" />
-                Löschen (Entf)
-              </Button>
-            </div>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              disabled={busy || !selected || ranges.length <= 1}
+              title="Ausgewählten Abschnitt entfernen (Entf)"
+              onClick={removeSelected}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              Löschen (Entf)
+            </Button>
           </div>
+        </div>
 
+        <div
+          ref={trackRef}
+          className="relative mt-3"
+          role="slider"
+          aria-label="Zeitleiste"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(currentTime)}
+        >
           <div
-            ref={trackRef}
-            className="relative mt-3"
-            role="slider"
-            aria-label="Zeitleiste"
-            aria-valuemin={0}
-            aria-valuemax={Math.round(duration)}
-            aria-valuenow={Math.round(currentTime)}
+            className="h-2.5 cursor-pointer rounded-t-md bg-zinc-800"
+            onPointerDown={(e) => {
+              if (duration <= 0) return;
+              startDrag({ kind: "playhead" }, e);
+              if (trackRef.current) {
+                scrubTo(timeFromClientX(e.clientX, trackRef.current, duration));
+              }
+            }}
+          />
+          <div
+            className="relative h-14 cursor-pointer rounded-b-md bg-muted"
+            onPointerDown={(e) => {
+              if (duration <= 0) return;
+              startDrag({ kind: "playhead" }, e);
+              if (trackRef.current) {
+                scrubTo(timeFromClientX(e.clientX, trackRef.current, duration));
+              }
+            }}
           >
+            {sortedRanges(ranges).map((range, index) => {
+              const left = duration > 0 ? (range.start / duration) * 100 : 0;
+              const widthPct =
+                duration > 0 ? ((range.end - range.start) / duration) * 100 : 0;
+              const selectedRange = range.id === selectedId;
+              const wide = widthPct >= 18;
+              return (
+                <div
+                  key={range.id}
+                  className={cn(
+                    "absolute top-1.5 bottom-1.5 overflow-hidden rounded-md",
+                    selectedRange
+                      ? "bg-primary ring-1 ring-foreground/30"
+                      : "bg-primary/55 hover:bg-primary/70",
+                  )}
+                  style={{ left: `${left}%`, width: `${Math.max(widthPct, 0.6)}%` }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setSelectedId(range.id);
+                    setGapHint(null);
+                  }}
+                >
+                  <div className="pointer-events-none flex h-full items-center gap-1.5 px-2.5 text-[11px] text-primary-foreground">
+                    <span className="shrink-0 font-medium">{index + 1}</span>
+                    {wide ? (
+                      <>
+                        <span className="min-w-0 truncate font-mono opacity-90">
+                          {formatTimecode(range.start)}–{formatTimecode(range.end)}
+                        </span>
+                        <span className="ml-auto shrink-0 opacity-80">
+                          {formatDuration(range.end - range.start)}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`Start von Abschnitt ${index + 1} verschieben`}
+                    className="absolute top-0 bottom-0 left-0 z-10 w-2.5 cursor-ew-resize rounded-l-md bg-primary-foreground/35"
+                    onPointerDown={(e) =>
+                      startDrag({ kind: "range", id: range.id, edge: "start" }, e)
+                    }
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Ende von Abschnitt ${index + 1} verschieben`}
+                    className="absolute top-0 bottom-0 right-0 z-10 w-2.5 cursor-ew-resize rounded-r-md bg-primary-foreground/35"
+                    onPointerDown={(e) =>
+                      startDrag({ kind: "range", id: range.id, edge: "end" }, e)
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {duration > 0 ? (
             <div
-              className="h-2.5 cursor-pointer rounded-t-md bg-zinc-800"
+              className="absolute top-0 bottom-0 z-20 w-4 -translate-x-1/2 cursor-ew-resize"
+              style={{ left: `${(currentTime / duration) * 100}%` }}
               onPointerDown={(e) => {
-                if (duration <= 0) return;
                 startDrag({ kind: "playhead" }, e);
-                if (trackRef.current) {
-                  scrubTo(timeFromClientX(e.clientX, trackRef.current, duration));
-                }
-              }}
-            />
-            <div
-              className="relative h-14 cursor-pointer rounded-b-md bg-muted"
-              onPointerDown={(e) => {
-                if (duration <= 0) return;
-                startDrag({ kind: "playhead" }, e);
-                if (trackRef.current) {
-                  scrubTo(timeFromClientX(e.clientX, trackRef.current, duration));
-                }
               }}
             >
-              {sortedRanges(ranges).map((range, index) => {
-                const left = duration > 0 ? (range.start / duration) * 100 : 0;
-                const widthPct =
-                  duration > 0 ? ((range.end - range.start) / duration) * 100 : 0;
-                const selectedRange = range.id === selectedId;
-                const wide = widthPct >= 18;
-                return (
-                  <div
-                    key={range.id}
-                    className={cn(
-                      "absolute top-1.5 bottom-1.5 overflow-hidden rounded-md",
-                      selectedRange
-                        ? "bg-primary ring-1 ring-foreground/30"
-                        : "bg-primary/55 hover:bg-primary/70",
-                    )}
-                    style={{ left: `${left}%`, width: `${Math.max(widthPct, 0.6)}%` }}
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      setSelectedId(range.id);
-                      setGapHint(null);
-                    }}
-                  >
-                    <div className="pointer-events-none flex h-full items-center gap-1.5 px-2.5 text-[11px] text-primary-foreground">
-                      <span className="shrink-0 font-medium">{index + 1}</span>
-                      {wide ? (
-                        <>
-                          <span className="min-w-0 truncate font-mono opacity-90">
-                            {formatTimecode(range.start)}–{formatTimecode(range.end)}
-                          </span>
-                          <span className="ml-auto shrink-0 opacity-80">
-                            {formatDuration(range.end - range.start)}
-                          </span>
-                        </>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      aria-label={`Start von Abschnitt ${index + 1} verschieben`}
-                      className="absolute top-0 bottom-0 left-0 z-10 w-2.5 cursor-ew-resize rounded-l-md bg-primary-foreground/35"
-                      onPointerDown={(e) =>
-                        startDrag({ kind: "range", id: range.id, edge: "start" }, e)
-                      }
-                    />
-                    <button
-                      type="button"
-                      aria-label={`Ende von Abschnitt ${index + 1} verschieben`}
-                      className="absolute top-0 bottom-0 right-0 z-10 w-2.5 cursor-ew-resize rounded-r-md bg-primary-foreground/35"
-                      onPointerDown={(e) =>
-                        startDrag({ kind: "range", id: range.id, edge: "end" }, e)
-                      }
-                    />
-                  </div>
-                );
-              })}
+              <div className="mx-auto h-full w-0.5 bg-foreground" />
+              <div className="absolute top-0 left-1/2 size-2 -translate-x-1/2 rounded-full bg-foreground" />
             </div>
-            {duration > 0 ? (
-              <div
-                className="absolute top-0 bottom-0 z-20 w-4 -translate-x-1/2 cursor-ew-resize"
-                style={{ left: `${(currentTime / duration) * 100}%` }}
-                onPointerDown={(e) => {
-                  startDrag({ kind: "playhead" }, e);
-                }}
-              >
-                <div className="mx-auto h-full w-0.5 bg-foreground" />
-                <div className="absolute top-0 left-1/2 size-2 -translate-x-1/2 rounded-full bg-foreground" />
-              </div>
-            ) : null}
+          ) : null}
+        </div>
+
+        {selected ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-muted/50 px-2 py-1.5">
+            <span className="text-xs font-medium">
+              Abschnitt{" "}
+              {sortedRanges(ranges).findIndex((range) => range.id === selected.id) + 1}
+            </span>
+            <TimeField
+              value={selected.start}
+              disabled={busy}
+              ariaLabel="Start"
+              className="h-6 w-16"
+              onCommit={(start) =>
+                setRanges((prev) =>
+                  applyRange(prev, selected.id, start, selected.end, duration),
+                )
+              }
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <TimeField
+              value={selected.end}
+              disabled={busy}
+              ariaLabel="Ende"
+              className="h-6 w-16"
+              onCommit={(end) =>
+                setRanges((prev) =>
+                  applyRange(prev, selected.id, selected.start, end, duration),
+                )
+              }
+            />
+            <span className="text-xs text-muted-foreground">
+              {formatDuration(selected.end - selected.start)}
+            </span>
           </div>
+        ) : null}
 
-          {selected ? (
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-muted/50 px-2 py-1.5">
-              <span className="text-xs font-medium">
-                Abschnitt{" "}
-                {sortedRanges(ranges).findIndex((range) => range.id === selected.id) + 1}
-              </span>
-              <TimeField
-                value={selected.start}
-                disabled={busy}
-                ariaLabel="Start"
-                className="h-6 w-16"
-                onCommit={(start) =>
-                  setRanges((prev) =>
-                    applyRange(prev, selected.id, start, selected.end, duration),
-                  )
-                }
-              />
-              <span className="text-xs text-muted-foreground">–</span>
-              <TimeField
-                value={selected.end}
-                disabled={busy}
-                ariaLabel="Ende"
-                className="h-6 w-16"
-                onCommit={(end) =>
-                  setRanges((prev) =>
-                    applyRange(prev, selected.id, selected.start, end, duration),
-                  )
-                }
-              />
-              <span className="text-xs text-muted-foreground">
-                {formatDuration(selected.end - selected.start)}
-              </span>
-            </div>
-          ) : null}
+        {gapHint ? (
+          <p className="mt-1.5 text-xs text-muted-foreground">{gapHint}</p>
+        ) : null}
 
-          {gapHint ? (
-            <p className="mt-1.5 text-xs text-muted-foreground">{gapHint}</p>
-          ) : null}
-
-          <p className="mt-2 text-xs text-muted-foreground">
-            Behalten: {formatDuration(totalKeep) || "0s"} von{" "}
-            {formatDuration(duration) || "0s"}. S teilt an der Abspielposition.
-            Abschnitt anklicken, Entf löscht ihn. Der Originalclip bleibt
-            erhalten.
-          </p>
-          {error ? (
-            <p className="mt-2 text-sm text-destructive">{error}</p>
-          ) : null}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Behalten: {formatDuration(totalKeep) || "0s"} von{" "}
+          {formatDuration(duration) || "0s"}. S teilt an der Abspielposition.
+          Abschnitt anklicken, Entf löscht ihn. Der Originalclip bleibt
+          erhalten.
+        </p>
+        {error ? (
+          <p className="mt-2 text-sm text-destructive">{error}</p>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 flex-wrap justify-end gap-1.5 border-t px-4 py-3">
-          <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
-            Abbrechen
-          </Button>
-          <Button
-            type="button"
-            disabled={!canSave}
-            onClick={() =>
-              onSave(
-                sortedRanges(ranges).map(({ start, end }) => ({ start, end })),
-              )
-            }
-          >
-            {busy ? <Spinner data-icon="inline-start" /> : <ScissorsIcon data-icon="inline-start" />}
-            Als neuen Clip speichern
-          </Button>
-        </div>
+        <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
+          Abbrechen
+        </Button>
+        <Button
+          type="button"
+          disabled={!canSave}
+          onClick={() =>
+            onSave(
+              sortedRanges(ranges).map(({ start, end }) => ({ start, end })),
+            )
+          }
+        >
+          {busy ? <Spinner data-icon="inline-start" /> : <ScissorsIcon data-icon="inline-start" />}
+          Als neuen Clip speichern
+        </Button>
+      </div>
     </div>
   );
 }
