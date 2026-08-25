@@ -15,7 +15,7 @@ function electronProcess(): ElectronProcess {
   return process as ElectronProcess;
 }
 
-/** True when running the installed/packaged Electron app (not `electron-vite dev` or tsx). */
+/** True when running the installed/packaged Electron app (not `electron-vite dev`). */
 export function isPackagedApp(): boolean {
   if (!process.versions.electron) return false;
   if (electronProcess().defaultApp === true) return false;
@@ -152,7 +152,7 @@ export function validateClipSeconds(
   return null;
 }
 
-/** Repo root (…/EasyClip). Works for CLI (tsx) and Electron (cwd). */
+/** Repo root (…/EasyClip). */
 export function getRepoRoot(): string {
   const fromEnv = process.env.EASYCLIP_ROOT ?? process.env.JSCLIPPING_ROOT;
   if (fromEnv) {
@@ -179,7 +179,7 @@ export function getRepoRoot(): string {
 
 /**
  * App data directory for config, clips index, and thumbnails.
- * Prefer APPDATA on Windows so CLI and Electron share the same files.
+ * Prefer APPDATA on Windows so packaged and unpackaged runs share the same files.
  */
 export function getAppDataDir(electronUserData?: string): string {
   if (process.env.APPDATA) {

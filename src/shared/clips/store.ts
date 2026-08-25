@@ -32,7 +32,7 @@ export function newClipId(): string {
   return crypto.randomUUID();
 }
 
-/** Default OBS/CLI filenames still count as unnamed until the user renames. */
+/** Default OBS / Action Ring filenames still count as unnamed until the user renames. */
 function looksAutoNamed(name: string): boolean {
   return /_\d+s$/i.test(name) || /^Replay\b/i.test(name);
 }

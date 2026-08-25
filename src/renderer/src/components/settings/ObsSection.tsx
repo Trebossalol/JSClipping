@@ -10,6 +10,7 @@ import {
   Field,
   FieldGroup,
   FieldLabel,
+  FieldDescription,
 } from "@/components/ui/field";
 import {
   InputGroup,
@@ -57,7 +58,7 @@ export function ObsSection({
         </Alert>
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="obs-url">URL</FieldLabel>
+            <FieldLabel htmlFor="obs-url">Server</FieldLabel>
             <Input
               id="obs-url"
               type="url"
@@ -66,6 +67,9 @@ export function ObsSection({
               value={url}
               onChange={(e) => onUrlChange(e.target.value)}
             />
+            <FieldDescription>
+              Ändere diese Einstellung nur, wenn du weißt was du tust.
+            </FieldDescription>
           </Field>
           <Field>
             <FieldLabel htmlFor="obs-password">Passwort</FieldLabel>
@@ -91,6 +95,9 @@ export function ObsSection({
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
+            <FieldDescription>
+              Trage hier das gleiche Passwort wie in den OBS WebSocket Server Einstellungen ein.
+            </FieldDescription>
           </Field>
         </FieldGroup>
       </CardContent>

@@ -100,8 +100,8 @@ const api: ElectronApi = {
     };
   },
   closeQuickAction: () => ipcRenderer.invoke(IpcChannels.closeQuickAction),
-  selectQuickAction: (seconds: number) =>
-    ipcRenderer.invoke(IpcChannels.selectQuickAction, seconds),
+  selectQuickAction: (seconds: number, title?: string) =>
+    ipcRenderer.invoke(IpcChannels.selectQuickAction, seconds, title),
 };
 
 contextBridge.exposeInMainWorld("api", api);

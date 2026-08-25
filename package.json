@@ -11,7 +11,6 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite dev",
-    "clip": "tsx src/cli/obs_replay_clip.ts",
     "prepare:ffmpeg": "node scripts/copy-ffmpeg.mjs",
     "dist": "npm run prepare:ffmpeg && npm run build && electron-builder --win --x64"
   },
@@ -45,7 +44,6 @@
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vite": "^7.3.6"
   },

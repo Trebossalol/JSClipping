@@ -607,7 +607,7 @@ function createWindow(): void {
 }
 
 const QUICK_ACTION_WIDTH = 360;
-const QUICK_ACTION_HEIGHT = 420;
+const QUICK_ACTION_HEIGHT = 480;
 
 function hideQuickActionWindow(): void {
   if (!quickActionWindow || quickActionWindow.isDestroyed()) return;
@@ -697,7 +697,7 @@ function toggleQuickActionWindow(): void {
 
 async function runCreateClip(
   seconds: number,
-  options?: { log?: boolean },
+  options?: { log?: boolean; title?: string },
 ): Promise<CreateClipResult> {
   const tooShort = validateClipSeconds(seconds);
   if (tooShort) return { ok: false, error: tooShort };
@@ -736,7 +736,7 @@ async function runCreateClip(
     await importClipFromFile(
       { appDataDir, outputDir: config.CLIP_OUTPUT_DIR },
       result.outputPath,
-      { durationSeconds: result.durationSeconds },
+      { durationSeconds: result.durationSeconds, name: options?.title },
     );
     sendClipsChanged();
     log?.info(`Done: ${result.outputPath}`);
@@ -782,13 +782,15 @@ function syncPresetHotkeys(notify: boolean): string[] {
   return failed;
 }
 
-async function handlePresetHotkey(seconds: number): Promise<void> {
-  const result = await runCreateClip(seconds, { log: true });
-  const payload: HotkeyClipPayload = { seconds, result };
+async function handlePresetHotkey(seconds: number, title?: string): Promise<void> {
+  const result = await runCreateClip(seconds, { log: true, title });
+  const payload: HotkeyClipPayload = { seconds, result, title };
   sendToMainWindow(IpcChannels.hotkeyClip, payload);
   if (windowCanShowToast()) return;
   const body = result.ok
-    ? `Clip gespeichert (${seconds}s)`
+    ? title
+      ? `„${title}“ gespeichert (${seconds}s)`
+      : `Clip gespeichert (${seconds}s)`
     : result.error;
   new Notification({ title: APP_NAME, body }).show();
 }
@@ -921,9 +923,11 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IpcChannels.selectQuickAction,
-    (_event, seconds: number): void => {
+    (_event, seconds: number, title?: unknown): void => {
       hideQuickActionWindow();
-      void handlePresetHotkey(seconds);
+      const name =
+        typeof title === "string" && title.trim() ? title.trim() : undefined;
+      void handlePresetHotkey(seconds, name);
     },
   );
 
@@ -1056,7 +1060,7 @@ app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) return;
 
   appDataDir = app.getPath("userData");
-  // Prefer %APPDATA%\EasyClip so CLI and Electron share config
+  // Prefer %APPDATA%\EasyClip so packaged and unpackaged runs share config
   if (process.env.APPDATA) {
     const shared = join(process.env.APPDATA, APP_ID);
     appDataDir = shared;

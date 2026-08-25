@@ -87,15 +87,18 @@ export function App() {
       }),
     );
     unsubs.push(
-      window.api.onHotkeyClip(({ seconds, result }) => {
+      window.api.onHotkeyClip(({ seconds, result, title }) => {
         if (result.ok) {
           setLastSeconds(seconds);
           selectNewestRef.current = true;
+          const named = title?.trim();
           setClipMessage({
-            text: `Die letzten ${formatDuration(seconds)} wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
+            text: named
+              ? `Die letzten ${formatDuration(seconds)} wurden als „${named}“ gespeichert.`
+              : `Die letzten ${formatDuration(seconds)} wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
             kind: "ok",
           });
-          toast.success("Clip gespeichert.");
+          toast.success(named ? `„${named}“ gespeichert.` : "Clip gespeichert.");
         } else {
           setClipMessage({ text: result.error, kind: "err" });
           toast.error(result.error);

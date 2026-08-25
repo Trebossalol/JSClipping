@@ -4,8 +4,8 @@ import { getVideoDuration } from "../clip-service.js";
 import type { ClipRecord } from "../ipc.js";
 import { ensureDir, isVideoFile } from "../paths.js";
 import { generateThumbnail } from "../thumbnail.js";
-import { beginImport, endImport } from "./ignore.js";
-import { moveIntoYearMonth, walkVideos } from "./files.js";
+import { beginImport, endImport, ignorePathTemporarily } from "./ignore.js";
+import { moveIntoYearMonth, sanitizeFileStem, uniquePath, walkVideos } from "./files.js";
 import {
   listClips,
   newClipId,
@@ -15,10 +15,34 @@ import {
 } from "./store.js";
 import type { ClipsStoreOptions } from "./types.js";
 
+function applyUserFileName(
+  filePath: string,
+  name: string | undefined,
+): { filePath: string; namedByUser: boolean } {
+  const requested = name?.trim();
+  if (!requested) return { filePath, namedByUser: false };
+  const stem = sanitizeFileStem(requested);
+  if (!stem) return { filePath, namedByUser: false };
+  const dir = path.dirname(filePath);
+  const ext = path.extname(filePath);
+  const dest = uniquePath(dir, stem, ext);
+  if (path.normalize(dest) !== path.normalize(filePath)) {
+    ignorePathTemporarily(filePath);
+    ignorePathTemporarily(dest);
+    try {
+      fs.renameSync(filePath, dest);
+    } catch {
+      return { filePath, namedByUser: false };
+    }
+    return { filePath: dest, namedByUser: true };
+  }
+  return { filePath, namedByUser: true };
+}
+
 export async function importClipFromFile(
   options: ClipsStoreOptions,
   filePath: string,
-  opts?: { createdAt?: Date; durationSeconds?: number | null },
+  opts?: { createdAt?: Date; durationSeconds?: number | null; name?: string },
 ): Promise<ClipRecord | null> {
   const { appDataDir, outputDir } = options;
   if (!fs.existsSync(filePath) || !isVideoFile(filePath)) return null;
@@ -35,11 +59,12 @@ export async function importClipFromFile(
     const stat = fs.statSync(filePath);
     const createdAt = opts?.createdAt ?? stat.mtime;
     const movedPath = moveIntoYearMonth(filePath, outputDir, createdAt);
+    const named = applyUserFileName(movedPath, opts?.name);
 
     let durationSeconds = opts?.durationSeconds ?? null;
     if (durationSeconds == null) {
       try {
-        durationSeconds = await getVideoDuration(movedPath);
+        durationSeconds = await getVideoDuration(named.filePath);
       } catch {
         durationSeconds = null;
       }
@@ -47,25 +72,25 @@ export async function importClipFromFile(
 
     const id = newClipId();
     const thumbnailPath = await generateThumbnail(
-      movedPath,
+      named.filePath,
       thumbnailsDir(appDataDir),
       id,
     );
 
     const record: ClipRecord = {
       id,
-      filePath: movedPath,
-      name: path.basename(movedPath, path.extname(movedPath)),
+      filePath: named.filePath,
+      name: path.basename(named.filePath, path.extname(named.filePath)),
       createdAt: createdAt.toISOString(),
       durationSeconds,
       thumbnailPath,
       missing: false,
-      namedByUser: false,
+      namedByUser: named.namedByUser,
     };
 
     // Re-read in case another import finished while we were working
     const latest = readStore(appDataDir);
-    if (latest.some((c) => path.normalize(c.filePath) === path.normalize(movedPath))) {
+    if (latest.some((c) => path.normalize(c.filePath) === path.normalize(named.filePath))) {
       return null;
     }
     latest.unshift(record);

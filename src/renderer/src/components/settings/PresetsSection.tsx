@@ -99,8 +99,9 @@ export function PresetsSection({
             <FieldLabel htmlFor="quick-action-hotkey">Schnellmenü</FieldLabel>
             <FieldDescription>
               Ein Tastenkürzel öffnet ein kleines Menü im Vordergrund. Dort
-              wählst du das Preset mit der Maus, den Pfeiltasten oder 1–6.
-              Esc oder ein Klick daneben schließt es.
+              kannst du direkt einen Titel vergeben und das Preset mit der Maus,
+              den Pfeiltasten oder 1–6 wählen. Esc oder ein Klick daneben
+              schließt es.
             </FieldDescription>
             <div className="flex flex-wrap items-center gap-2.5">
               <HotkeyInput
@@ -118,7 +119,7 @@ export function PresetsSection({
             ) : null}
           </Field>
           <Field>
-            <FieldLabel>Vorschaulängen</FieldLabel>
+            <FieldLabel>Presets</FieldLabel>
             <FieldDescription>
               Länge für die Buttons oben in der App. Optional zusätzlich ein
               eigenes Tastenkürzel pro Preset.
@@ -206,7 +207,6 @@ export function PresetsSection({
                     <ButtonGroup>
                       <Button
                         type="button"
-                        size="icon-xs"
                         variant="outline"
                         aria-label="Nach oben"
                         disabled={index === 0}
@@ -216,7 +216,6 @@ export function PresetsSection({
                       </Button>
                       <Button
                         type="button"
-                        size="icon-xs"
                         variant="outline"
                         aria-label="Nach unten"
                         disabled={index === clipPresets.length - 1}
@@ -226,13 +225,12 @@ export function PresetsSection({
                       </Button>
                       <Button
                         type="button"
-                        size="icon-xs"
                         variant="outline"
                         aria-label="Entfernen"
                         disabled={clipPresets.length <= 1}
                         onClick={() => onRemove(draft.id)}
                       >
-                        <Trash2Icon />
+                        <Trash2Icon className="size-4 text-red-400" />
                       </Button>
                     </ButtonGroup>
                   </div>
@@ -266,7 +264,7 @@ export function PresetsSection({
                 onClick={onAdd}
               >
                 <PlusIcon data-icon="inline-start" />
-                Preset hinzufügen
+                Hinzufügen
               </Button>
               <Button
                 type="button"
@@ -275,7 +273,7 @@ export function PresetsSection({
                 onClick={() => onReset(defaultPresetsForMax(maxSeconds))}
               >
                 <RotateCcwIcon data-icon="inline-start" />
-                Standard (30s / 1m / 5m / 10m)
+                Presets zurücksetzen
               </Button>
             </div>
           </Field>

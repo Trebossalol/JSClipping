@@ -145,6 +145,7 @@ export type StorageInfoResult =
 export interface HotkeyClipPayload {
   seconds: number;
   result: CreateClipResult;
+  title?: string;
 }
 
 export interface ElectronApi {
@@ -175,7 +176,7 @@ export interface ElectronApi {
   onHotkeyClip(callback: (payload: HotkeyClipPayload) => void): () => void;
   onQuickActionOpened(callback: () => void): () => void;
   closeQuickAction(): Promise<void>;
-  selectQuickAction(seconds: number): Promise<void>;
+  selectQuickAction(seconds: number, title?: string): Promise<void>;
 }
 
 declare global {
