@@ -1,8 +1,8 @@
-# JSClipping
+# Easy Clip
 
 **Hit a Logitech Action Ring segment. Walk away with a 30s / 1m / 5m / 10m clip.**
 
-JSClipping talks to OBS over WebSocket, dumps the Replay Buffer, then trims the last *N* seconds with FFmpeg — stream-copy, no re-encode, usually done in under a second.
+Easy Clip talks to OBS over WebSocket, dumps the Replay Buffer, then trims the last *N* seconds with FFmpeg — stream-copy, no re-encode, usually done in under a second.
 
 The **Electron companion** shows OBS connection status, lets you edit settings, create clips from the UI, and browse recent clips with thumbnails and editable titles.
 
@@ -28,13 +28,13 @@ The **Electron companion** shows OBS connection status, lets you edit settings, 
 
 | Action Ring segment | Script | Clip length |
 |---|---|---|
-| 30 seconds | `JSClipping.exe --clip 30` (or `clip.bat 30`) | last **30s** |
-| 1 minute | `JSClipping.exe --clip 60` | last **60s** |
-| 5 minutes | `JSClipping.exe --clip 300` | last **5 min** |
-| 10 minutes | `JSClipping.exe --clip 600` | last **10 min** (full buffer) |
+| 30 seconds | `EasyClip.exe --clip 30` (or `clip.bat 30`) | last **30s** |
+| 1 minute | `EasyClip.exe --clip 60` | last **60s** |
+| 5 minutes | `EasyClip.exe --clip 300` | last **5 min** |
+| 10 minutes | `EasyClip.exe --clip 600` | last **10 min** (full buffer) |
 | Autostart OBS | [`scripts/autostart.bat`](scripts/autostart.bat) | launches OBS with Replay Buffer on, tray-minimized |
 
-Clips land in `CLIP_OUTPUT_DIR\YYYY\MM\` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Renaming a clip in Electron also renames the file. Each CLI / `--clip` run also writes a log (`logs/` in the repo from source; `%APPDATA%\JSClipping\logs` when packaged).
+Clips land in `CLIP_OUTPUT_DIR\YYYY\MM\` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Renaming a clip in Electron also renames the file. Each CLI / `--clip` run also writes a log (`logs/` in the repo from source; `%APPDATA%\EasyClip\logs` when packaged).
 
 ---
 
@@ -51,14 +51,14 @@ Artifacts land in `dist/`:
 
 | File | What it is |
 |---|---|
-| `JSClipping-Setup-1.0.0.exe` | NSIS installer (default: `C:\Program Files\JSClipping\JSClipping.exe`) |
-| `JSClipping-Portable-1.0.0.exe` | Portable EXE (no install) |
+| `EasyClip-Setup-1.0.0.exe` | NSIS installer (default: `C:\Program Files\EasyClip\EasyClip.exe`) |
+| `EasyClip-Portable-1.0.0.exe` | Portable EXE (no install) |
 
-**Action Ring (packaged):** Open file = `JSClipping.exe`, argument = `--clip 30` (or `60` / `300` / `600`). If the app is already in the tray, that instance clips; otherwise it starts, clips, and stays in the tray.
+**Action Ring (packaged):** Open file = `EasyClip.exe`, argument = `--clip 30` (or `60` / `300` / `600`). If the app is already in the tray, that instance clips; otherwise it starts, clips, and stays in the tray.
 
 FFmpeg and ffprobe are bundled next to the app (`resources/ffmpeg/`). OBS stays a separate install.
 
-**Autostart (packaged):** enabling it in Settings registers Windows logon to launch `JSClipping.exe --started-at-login` (no npm). The app then starts OBS with `--startreplaybuffer --minimize-to-tray` if OBS is not already running.
+**Autostart (packaged):** enabling it in Settings registers Windows logon to launch `EasyClip.exe --started-at-login` (no npm). The app then starts OBS with `--startreplaybuffer --minimize-to-tray` if OBS is not already running.
 
 ---
 
@@ -88,14 +88,14 @@ npm -v
 ### 2. Clone and install the project
 
 ```powershell
-git clone <your-repo-url> JSClipping
-cd JSClipping
+git clone <your-repo-url> EasyClip
+cd EasyClip
 npm install
 ```
 
 ### 3. Configure settings
 
-Settings live in **`%APPDATA%\JSClipping\config.json`** (shared by the Electron app and Action Ring / `clip.bat`).
+Settings live in **`%APPDATA%\EasyClip\config.json`** (shared by the Electron app and Action Ring / `clip.bat`).
 
 **Easiest:** start the app and fill in Settings:
 
@@ -123,7 +123,7 @@ First launch writes defaults (`ws://localhost:4455`, password `CHANGE_ME`, outpu
 
 ### 5. Turn on the Replay Buffer
 
-JSClipping does **not** start the buffer (except via `autostart.bat`). It only *saves* it.
+Easy Clip does **not** start the buffer (except via `autostart.bat`). It only *saves* it.
 
 1. OBS → **Settings → Output**.
 2. Output mode: **Advanced** (if you need the Replay Buffer tab).
@@ -148,18 +148,18 @@ The window shows:
 
 - **OBS connected / disconnected** status (auto-reconnect)
 - **Clip buttons** (30s / 1m / 5m / 10m)
-- **Settings** editor (writes `%APPDATA%\JSClipping\config.json`)
+- **Settings** editor (writes `%APPDATA%\EasyClip\config.json`)
 - **Recent clips** grid with thumbnails — click to open in your system player; edit the title to rename the file on disk
 
 Closing the window **keeps the app in the Windows tray**. Click the tray icon (or Open) to show the window again; use **Quit** in the tray menu to exit. The tray icon shows a red badge with the count of clips that still need a title; renaming a clip clears it from that count.
 
-From source, Action Ring can still go through `clip.bat`. The packaged app uses `JSClipping.exe --clip 30` instead. The Electron app watches the output folder and adds new files to Recent Clips automatically.
+From source, Action Ring can still go through `clip.bat`. The packaged app uses `EasyClip.exe --clip 30` instead. The Electron app watches the output folder and adds new files to Recent Clips automatically.
 
 ---
 
 ## Logitech Options+ — Action Ring
 
-**Packaged (recommended):** Open application / Open a file = `C:\Program Files\JSClipping\JSClipping.exe`. Argument:
+**Packaged (recommended):** Open application / Open a file = `C:\Program Files\EasyClip\EasyClip.exe`. Argument:
 
 | Segment label | Argument |
 |---|---|
@@ -177,7 +177,7 @@ From source, Action Ring can still go through `clip.bat`. The packaged app uses 
 With OBS open and the Replay Buffer **running**:
 
 ```powershell
-cd C:\Users\<you>\Documents\repos\JSClipping
+cd C:\Users\<you>\Documents\repos\EasyClip
 npm run clip -- 30
 ```
 
@@ -190,7 +190,7 @@ Clips are written under `CLIP_OUTPUT_DIR\YYYY\MM\`.
 ## Project layout
 
 ```
-JSClipping/
+EasyClip/
 ├── package.json
 ├── electron.vite.config.ts
 ├── scripts/
@@ -211,7 +211,7 @@ JSClipping/
     └── renderer/             # Electron UI (React + shadcn/ui)
 ```
 
-App data (`%APPDATA%\JSClipping\`):
+App data (`%APPDATA%\EasyClip\`):
 
 - `config.json` — OBS URL, password, output folder
 - `clips.json` — recent-clips index
@@ -228,7 +228,7 @@ App data (`%APPDATA%\JSClipping\`):
 | `Could not connect to OBS WebSocket` / red status pill | OBS is closed, WebSocket is off, wrong password/port. Recheck **Tools → WebSocket Server Settings** and Electron Settings. |
 | `Could not determine saved replay buffer file path` | Replay Buffer is not running, or OBS has not flushed the file within ~10s. |
 | Action Ring does nothing | Packaged: confirm the argument is `--clip 30`. From source: open the newest file in `logs\` and confirm `node_modules\.bin\tsx.cmd` exists (`npm install`). |
-| Settings / clips not shared with CLI | Both must use `%APPDATA%\JSClipping\config.json`. |
+| Settings / clips not shared with CLI | Both must use `%APPDATA%\EasyClip\config.json`. |
 
 ---
 

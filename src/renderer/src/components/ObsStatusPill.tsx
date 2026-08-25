@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -12,10 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatDuration } from "@/format";
 import type { ObsStatus } from "@shared/ipc";
 import { ChevronDownIcon, PlugIcon, UnplugIcon } from "lucide-react";
-import {
-  startObsWithAutostart,
-  stopObsProcess,
-} from "./ClipActions";
+import { startObsWithAutostart, stopObsProcess } from "./ClipActions";
 
 interface ObsStatusPillProps {
   status: ObsStatus | null;
@@ -71,7 +69,7 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
           aria-label="OBS-Status"
         >
           {connecting ? (
-            <Spinner className="size-3.5" />
+            <Spinner />
           ) : connected ? (
             <PlugIcon data-icon="inline-start" />
           ) : (
@@ -83,7 +81,7 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-44">
         {replayMaxLabel ? (
-          <>
+          <DropdownMenuGroup>
             <DropdownMenuLabel>
               Puffer max. {replayMaxLabel}
               <span className="mt-0.5 block font-normal">
@@ -91,26 +89,28 @@ export function ObsStatusPill({ status }: ObsStatusPillProps) {
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-          </>
+          </DropdownMenuGroup>
         ) : null}
-        {running ? (
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={busy}
-            onClick={() => void onStopObs()}
-          >
-            {busy ? <Spinner className="size-4" /> : null}
-            OBS beenden
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem
-            disabled={busy || connecting}
-            onClick={() => void onStartObs()}
-          >
-            {busy ? <Spinner className="size-4" /> : null}
-            OBS starten
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuGroup>
+          {running ? (
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={busy}
+              onClick={() => void onStopObs()}
+            >
+              {busy ? <Spinner /> : null}
+              OBS beenden
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              disabled={busy || connecting}
+              onClick={() => void onStartObs()}
+            >
+              {busy ? <Spinner /> : null}
+              OBS starten
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

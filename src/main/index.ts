@@ -16,6 +16,7 @@ import {
   shell,
 } from "electron";
 import { OBSWebSocket } from "obs-websocket-js";
+import { APP_ID, APP_NAME, APP_USER_MODEL_ID } from "../shared/app.config.js";
 import { saveAndTrimClip } from "../shared/clip-service.js";
 import {
   loadConfig,
@@ -36,7 +37,7 @@ import {
   scanAndImportExisting,
   thumbnailsDir,
   waitForStableFile,
-} from "../shared/clips-store.js";
+} from "../shared/clips/index.js";
 import {
   IpcChannels,
   type AppConfigDto,
@@ -50,8 +51,8 @@ import {
 } from "../shared/ipc.js";
 import { getStorageInfo } from "../shared/storage.js";
 import { createRunLog } from "../shared/log.js";
+import { getObsReplayMaxSeconds } from "../shared/obs.js";
 import {
-  APP_NAME,
   getAutostartBatPath,
   getRepoRoot,
   isPackagedApp,
@@ -95,7 +96,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 app.setName(APP_NAME);
-app.setAppUserModelId("com.jsclipping.app");
+app.setAppUserModelId(APP_USER_MODEL_ID);
 
 let mainWindow: BrowserWindow | null = null;
 let cutterWindow: BrowserWindow | null = null;
@@ -210,15 +211,6 @@ function currentObsStatus(): ObsStatus {
     replayBufferActive: obsConnected ? replayBufferActive : false,
     replayMaxSeconds: obsConnected ? replayMaxSeconds : null,
   };
-}
-
-function parseProfileSeconds(value: string | undefined | null): number | null {
-  if (value == null) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const n = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n;
 }
 
 async function isObsProcessRunning(): Promise<boolean> {
@@ -346,19 +338,7 @@ async function refreshReplayMaxSeconds(): Promise<boolean> {
     return changed;
   }
   try {
-    const modeRes = await obs.call("GetProfileParameter", {
-      parameterCategory: "Output",
-      parameterName: "Mode",
-    });
-    const category =
-      modeRes.parameterValue === "Advanced" ? "AdvOut" : "SimpleOutput";
-    const timeRes = await obs.call("GetProfileParameter", {
-      parameterCategory: category,
-      parameterName: "RecRBTime",
-    });
-    const next =
-      parseProfileSeconds(timeRes.parameterValue) ??
-      parseProfileSeconds(timeRes.defaultParameterValue);
+    const next = await getObsReplayMaxSeconds(obs);
     const changed = replayMaxSeconds !== next;
     replayMaxSeconds = next;
     return changed;
@@ -596,7 +576,7 @@ function createWindow(): void {
     height: 780,
     minWidth: 720,
     minHeight: 560,
-    title: "JSClipping",
+    title: APP_NAME,
     icon: getAppIcon(),
     show: !startedAtLogin() && pendingClipSeconds == null,
     webPreferences: { ...windowPrefs },
@@ -620,8 +600,8 @@ async function runCreateClip(
   seconds: number,
   options?: { log?: boolean },
 ): Promise<CreateClipResult> {
-  const invalid = validateClipSeconds(seconds);
-  if (invalid) return { ok: false, error: invalid };
+  const tooShort = validateClipSeconds(seconds);
+  if (tooShort) return { ok: false, error: tooShort };
   const length = Math.floor(seconds);
 
   if (clipping) {
@@ -633,6 +613,10 @@ async function runCreateClip(
   if (!obsConnected) {
     return { ok: false, error: "OBS-WebSocket ist nicht verbunden." };
   }
+
+  await refreshReplayMaxSeconds();
+  const tooLong = validateClipSeconds(length, replayMaxSeconds);
+  if (tooLong) return { ok: false, error: tooLong };
 
   const log = options?.log ? createRunLog("clip") : undefined;
   log?.info(`Requested clip length: ${length}s`);
@@ -916,9 +900,9 @@ app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) return;
 
   appDataDir = app.getPath("userData");
-  // Prefer %APPDATA%\JSClipping so CLI and Electron share config
+  // Prefer %APPDATA%\EasyClip so CLI and Electron share config
   if (process.env.APPDATA) {
-    const shared = join(process.env.APPDATA, APP_NAME);
+    const shared = join(process.env.APPDATA, APP_ID);
     appDataDir = shared;
   }
   setAppDataDir(appDataDir);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration } from "@/format";
+import { APP_NAME } from "@shared/app.config";
 import type { ObsStatus } from "@shared/ipc";
 import {
   AlertCircleIcon,
@@ -75,7 +76,7 @@ export function ClipActions({ busy, obsStatus, message }: ClipActionsProps) {
         <TriangleAlertIcon />
         <AlertTitle>Wiederholungspuffer ist aus</AlertTitle>
         <AlertDescription>
-          JSClipping speichert nur den Puffer — starte ihn in OBS oder nutze
+          {APP_NAME} speichert nur den Puffer — starte ihn in OBS oder nutze
           autostart.bat.
         </AlertDescription>
       </Alert>

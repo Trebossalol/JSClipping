@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import { APP_NAME, getRepoRoot, isPackagedApp } from "../shared/paths.js";
+import { APP_NAME } from "../shared/app.config.js";
+import { getRepoRoot, isPackagedApp } from "../shared/paths.js";
 
-const LOGIN_ENV = "JSCLIPPING_STARTED_AT_LOGIN";
+const LOGIN_ENV = "EASYCLIP_STARTED_AT_LOGIN";
 export const LOGIN_FLAG = "--started-at-login";
 
 function launcherVbsPath(appDataDir: string): string {
@@ -46,7 +47,7 @@ export function startedAtLogin(): boolean {
   }
 }
 
-/** Register or remove JSClipping (+ OBS clip mode) from Windows logon. */
+/** Register or remove Easy Clip (+ OBS clip mode) from Windows logon. */
 export function setAppAutostartEnabled(
   enabled: boolean,
   appDataDir: string,

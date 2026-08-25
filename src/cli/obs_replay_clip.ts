@@ -8,6 +8,8 @@ import { OBSWebSocket } from "obs-websocket-js";
 import { saveAndTrimClip } from "../shared/clip-service.js";
 import { loadConfig } from "../shared/config.js";
 import { createRunLog } from "../shared/log.js";
+import { getObsReplayMaxSeconds } from "../shared/obs.js";
+import { validateClipSeconds } from "../shared/paths.js";
 
 const log = createRunLog("clip");
 
@@ -43,6 +45,20 @@ async function main(): Promise<void> {
   }
 
   try {
+    let maxSeconds: number | null = null;
+    try {
+      maxSeconds = await getObsReplayMaxSeconds(obs);
+    } catch {
+      log.info("Could not read OBS replay buffer max");
+    }
+    const invalid = validateClipSeconds(seconds, maxSeconds);
+    if (invalid) {
+      log.error(invalid);
+      process.exit(1);
+    }
+    if (maxSeconds != null) {
+      log.info(`OBS replay buffer max: ${maxSeconds}s`);
+    }
     const result = await saveAndTrimClip({
       obs,
       seconds,

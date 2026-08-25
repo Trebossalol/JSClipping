@@ -1,11 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import * as z from "zod";
-import {
-  DEFAULT_CLIP_PRESETS,
-  MAX_CLIP_PRESETS,
-  normalizeClipPresets,
-} from "./ipc.js";
+import { DEFAULT_USER_CONFIG, MAX_CLIP_PRESETS } from "./app.config.js";
+import { normalizeClipPresets } from "./ipc.js";
 import { ensureDir, getAppDataDir } from "./paths.js";
 
 export const ConfigSchema = z.object({
@@ -22,11 +19,8 @@ export const ConfigSchema = z.object({
 export type AppConfig = z.infer<typeof ConfigSchema>;
 
 const DEFAULTS: AppConfig = {
-  OBS_URL: "ws://localhost:4455",
-  OBS_PASSWORD: "CHANGE_ME",
-  CLIP_OUTPUT_DIR: "C:\\Clips",
-  AUTOSTART: false,
-  CLIP_PRESETS: [...DEFAULT_CLIP_PRESETS],
+  ...DEFAULT_USER_CONFIG,
+  CLIP_PRESETS: [...DEFAULT_USER_CONFIG.CLIP_PRESETS],
 };
 
 let cachedAppDataDir: string | undefined;

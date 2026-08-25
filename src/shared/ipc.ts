@@ -1,7 +1,8 @@
-export const DEFAULT_CLIP_PRESETS = [30, 60, 300, 600] as const;
-export const MIN_CLIP_PRESET_SECONDS = 1;
-export const MAX_CLIP_PRESET_SECONDS = 7200;
-export const MAX_CLIP_PRESETS = 12;
+import {
+  DEFAULT_CLIP_PRESETS,
+  MAX_CLIP_PRESETS,
+  MIN_CLIP_PRESET_SECONDS,
+} from "./app.config.js";
 
 export function normalizeClipPresets(value: unknown): number[] {
   if (!Array.isArray(value)) return [...DEFAULT_CLIP_PRESETS];
@@ -10,7 +11,7 @@ export function normalizeClipPresets(value: unknown): number[] {
   for (const item of value) {
     const n = typeof item === "number" ? item : Number(item);
     if (!Number.isInteger(n)) continue;
-    if (n < MIN_CLIP_PRESET_SECONDS || n > MAX_CLIP_PRESET_SECONDS) continue;
+    if (n < MIN_CLIP_PRESET_SECONDS) continue;
     if (seen.has(n)) continue;
     seen.add(n);
     out.push(n);
@@ -58,8 +59,6 @@ export interface CutRange {
   start: number;
   end: number;
 }
-
-export const MIN_CUT_RANGE_SECONDS = 0.2;
 
 export interface StorageInfo {
   outputDir: string;

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, Tray } from "electron";
-import { countUnnamedClips } from "../shared/clips-store.js";
+import { APP_NAME } from "../shared/app.config.js";
+import { countUnnamedClips } from "../shared/clips/index.js";
 import { getTrayIcon } from "./tray-icon.js";
 
 let tray: Tray | null = null;
@@ -39,8 +40,8 @@ export function updateTrayBadge(): void {
   tray.setImage(getTrayIcon(count));
   tray.setToolTip(
     count > 0
-      ? `JSClipping — ${count} unbenannte${count === 1 ? "r Clip" : " Clips"}`
-      : "JSClipping",
+      ? `${APP_NAME} — ${count} unbenannte${count === 1 ? "r Clip" : " Clips"}`
+      : APP_NAME,
   );
 }
 
@@ -56,11 +57,11 @@ export function createAppTray(options: {
   }
 
   tray = new Tray(getTrayIcon(0));
-  tray.setToolTip("JSClipping");
+  tray.setToolTip(APP_NAME);
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "JSClipping öffnen",
+      label: `${APP_NAME} öffnen`,
       click: () => showMainWindow(getWindow, createWindow),
     },
     { type: "separator" },

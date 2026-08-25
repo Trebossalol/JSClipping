@@ -3,11 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import {
-  MIN_CUT_RANGE_SECONDS,
-  type ClipRecord,
-  type CutRange,
-} from "@shared/ipc";
+import { MIN_CUT_RANGE_SECONDS } from "@shared/app.config";
+import { type ClipRecord, type CutRange } from "@shared/ipc";
 import { formatBytes, formatDuration, formatTimecode, parseTimecode } from "../format";
 import {
   PauseIcon,

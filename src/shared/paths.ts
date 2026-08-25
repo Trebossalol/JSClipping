@@ -2,10 +2,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-export const APP_NAME = "JSClipping";
-
-export const MAX_CLIP_SECONDS = 7200;
+import { APP_ID, MIN_CLIP_PRESET_SECONDS } from "./app.config.js";
 
 const WIN_EXE = process.platform === "win32" ? ".exe" : "";
 
@@ -26,7 +23,7 @@ export function isPackagedApp(): boolean {
   return true;
 }
 
-/** Installed JSClipping.exe (packaged) or the Electron binary (dev). */
+/** Installed EasyClip.exe (packaged) or the Electron binary (dev). */
 export function getExePath(): string {
   return process.execPath;
 }
@@ -120,7 +117,7 @@ export function getAutostartBatPath(): string | null {
   return fs.existsSync(bat) ? bat : null;
 }
 
-/** Parse `--clip 30` or `--clip=30` from argv. Invalid / out of range → null. */
+/** Parse `--clip 30` or `--clip=30` from argv. Invalid → null. */
 export function parseClipSecondsArg(argv: string[]): number | null {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -136,23 +133,30 @@ export function parseClipSecondsArg(argv: string[]): number | null {
     const trimmed = raw.trim();
     if (!/^\d+$/.test(trimmed)) continue;
     const n = Number.parseInt(trimmed, 10);
-    if (n > 0 && n <= MAX_CLIP_SECONDS) return n;
+    if (n >= MIN_CLIP_PRESET_SECONDS) return n;
   }
   return null;
 }
 
-export function validateClipSeconds(seconds: number): string | null {
+export function validateClipSeconds(
+  seconds: number,
+  maxSeconds?: number | null,
+): string | null {
   const n = Math.floor(Number(seconds));
-  if (!Number.isFinite(n) || n <= 0 || n > MAX_CLIP_SECONDS) {
-    return `Clip-Länge muss zwischen 1 und ${MAX_CLIP_SECONDS} Sekunden liegen.`;
+  if (!Number.isFinite(n) || n < MIN_CLIP_PRESET_SECONDS) {
+    return `Clip-Länge muss mindestens ${MIN_CLIP_PRESET_SECONDS} Sekunde betragen.`;
+  }
+  if (maxSeconds != null && maxSeconds > 0 && n > maxSeconds) {
+    return `Clip-Länge darf die OBS-Wiederholungszeit von ${maxSeconds} Sekunden nicht überschreiten.`;
   }
   return null;
 }
 
-/** Repo root (…/JSClipping). Works for CLI (tsx) and Electron (cwd). */
+/** Repo root (…/EasyClip). Works for CLI (tsx) and Electron (cwd). */
 export function getRepoRoot(): string {
-  if (process.env.JSCLIPPING_ROOT) {
-    return process.env.JSCLIPPING_ROOT;
+  const fromEnv = process.env.EASYCLIP_ROOT ?? process.env.JSCLIPPING_ROOT;
+  if (fromEnv) {
+    return fromEnv;
   }
 
   if (isPackagedApp()) {
@@ -179,12 +183,12 @@ export function getRepoRoot(): string {
  */
 export function getAppDataDir(electronUserData?: string): string {
   if (process.env.APPDATA) {
-    return path.join(process.env.APPDATA, APP_NAME);
+    return path.join(process.env.APPDATA, APP_ID);
   }
   if (electronUserData) {
     return electronUserData;
   }
-  return path.join(process.env.HOME ?? process.cwd(), `.${APP_NAME}`);
+  return path.join(process.env.HOME ?? process.cwd(), `.${APP_ID}`);
 }
 
 export function ensureDir(dir: string): string {

@@ -1,6 +1,6 @@
-appId: com.jsclipping.app
-productName: JSClipping
-copyright: Copyright © JSClipping
+appId: com.easyclip.app
+productName: EasyClip
+copyright: Copyright © Easy Clip
 asar: true
 npmRebuild: false
 directories:
@@ -25,7 +25,7 @@ extraResources:
       - "*.exe"
 win:
   icon: resources/logo.png
-  executableName: JSClipping
+  executableName: EasyClip
   target:
     - target: nsis
       arch:
@@ -37,8 +37,8 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   artifactName: ${productName}-Setup-${version}.${ext}
-  shortcutName: JSClipping
-  uninstallDisplayName: JSClipping
+  shortcutName: Easy Clip
+  uninstallDisplayName: Easy Clip
   createDesktopShortcut: true
   createStartMenuShortcut: true
 portable:

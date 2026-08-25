@@ -1,18 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { APP_NAME } from "@shared/app.config";
 import type { AppConfigDto, ClipRecord, ObsStatus } from "@shared/ipc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
+import {
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+  SidebarProvider,
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
 import { formatDuration } from "./format";
-import { AppHeader, type AppView } from "./components/AppHeader";
+import { AppSidebar, type AppView } from "./components/AppSidebar";
 import { ClipActions } from "./components/ClipActions";
+import { CommandBar } from "./components/CommandBar";
 import {
   RecentClips,
   type ClipFilter,
 } from "./components/RecentClips";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { StoragePanel } from "./components/StoragePanel";
 
 function untitledCount(clips: ClipRecord[]): number {
   return clips.filter((c) => !c.namedByUser && !c.missing).length;
@@ -154,83 +168,111 @@ export function App() {
 
   if (!config) {
     return (
-      <div className="flex h-full flex-col">
-        <div className="border-b bg-card px-5 py-3.5">
-          <div className="flex items-center justify-between gap-3">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-7 w-32" />
-          </div>
-          <div className="mt-2.5 flex items-center gap-2">
-            <Skeleton className="h-7 w-40" />
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="h-7 w-14" />
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col gap-4 px-5 py-5">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
+      <TooltipProvider>
+        <SidebarProvider className="h-full min-h-0">
+          <Sidebar collapsible="icon">
+            <SidebarHeader>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuSkeleton showIcon />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarHeader>
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuSkeleton showIcon />
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuSkeleton showIcon />
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+          </Sidebar>
+          <SidebarInset className="min-h-0 overflow-hidden">
+            <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+              <Skeleton className="size-7" />
+              <Skeleton className="h-7 w-32" />
+              <Skeleton className="h-7 w-14" />
+              <Skeleton className="h-7 w-14" />
+              <Skeleton className="h-7 w-14" />
+            </header>
+            <div className="flex flex-1 flex-col gap-4 px-5 py-5">
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-64 w-full" />
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
         <Toaster theme="dark" />
-      </div>
+      </TooltipProvider>
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <AppHeader
-        view={view}
-        onViewChange={setView}
-        obsStatus={obsStatus}
-        untitledCount={untitledCount(clips)}
-        onUntitled={() => {
-          setView("library");
-          setFilter("untitled");
-        }}
-        busy={clippingBusy}
-        lastSeconds={lastSeconds}
-        clipPresets={config.CLIP_PRESETS}
-        onCreate={(seconds) => void createClip(seconds)}
-      />
+    <TooltipProvider>
+      <SidebarProvider className="h-full min-h-0">
+        <AppSidebar
+          view={view}
+          onViewChange={setView}
+          untitledCount={untitledCount(clips)}
+          onUntitled={() => {
+            setView("library");
+            setFilter("untitled");
+          }}
+        />
 
-      <main className="flex-1 overflow-y-auto px-5 py-5">
-        {view === "library" ? (
-          <div className="flex flex-col gap-5">
-            <ClipActions
-              busy={clippingBusy}
-              obsStatus={obsStatus}
-              message={clipMessage}
-            />
-            <RecentClips
-              clips={clips}
-              filter={filter}
-              onFilterChange={setFilter}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onOpen={(id) => void openClip(id)}
-              onRename={(id, name) => void renameClip(id, name)}
-              onReveal={revealClip}
-              onDelete={(id) => deleteClip(id)}
-              onCut={(id) => void openCutter(id)}
-            />
+        <SidebarInset className="min-h-0 overflow-hidden">
+          <CommandBar
+            obsStatus={obsStatus}
+            busy={clippingBusy}
+            lastSeconds={lastSeconds}
+            clipPresets={config.CLIP_PRESETS}
+            onCreate={(seconds) => void createClip(seconds)}
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            {view === "library" ? (
+              <div className="flex flex-col gap-5">
+                <ClipActions
+                  busy={clippingBusy}
+                  obsStatus={obsStatus}
+                  message={clipMessage}
+                />
+                <RecentClips
+                  clips={clips}
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onOpen={(id) => void openClip(id)}
+                  onRename={(id, name) => void renameClip(id, name)}
+                  onReveal={revealClip}
+                  onDelete={(id) => deleteClip(id)}
+                  onCut={(id) => void openCutter(id)}
+                />
+              </div>
+            ) : (
+              <SettingsPanel
+                section={view}
+                config={config}
+                replayMaxSeconds={obsStatus?.replayMaxSeconds ?? null}
+                onSave={saveConfig}
+              />
+            )}
           </div>
-        ) : view === "storage" ? (
-          <StoragePanel />
-        ) : (
-          <SettingsPanel config={config} onSave={saveConfig} />
-        )}
-      </main>
-
-      <footer className="border-t bg-card px-5 py-2.5">
-        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-          <InfoIcon className="mt-px size-3 shrink-0" />
-          Beim Schließen des Fensters bleibt JSClipping im Infobereich. Beende
-          die App über das Infobereich-Menü.
-        </p>
-      </footer>
-
+          <footer className="shrink-0 border-t bg-card px-5 py-2.5">
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <InfoIcon className="mt-px size-3 shrink-0" />
+              Beim Schließen des Fensters bleibt {APP_NAME} im Infobereich. Beende
+              die App über das Infobereich-Menü.
+            </p>
+          </footer>
+        </SidebarInset>
+      </SidebarProvider>
       <Toaster theme="dark" />
-    </div>
+    </TooltipProvider>
   );
 }

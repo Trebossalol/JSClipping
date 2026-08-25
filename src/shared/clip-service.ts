@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { OBSWebSocket } from "obs-websocket-js";
-import { MIN_CUT_RANGE_SECONDS, type CutRange } from "./ipc.js";
+import { MIN_CUT_RANGE_SECONDS } from "./app.config.js";
+import type { CutRange } from "./ipc.js";
 import type { RunLog } from "./log.js";
 import { ensureDir, getFfmpegPath, getFfprobePath, yearMonthDir } from "./paths.js";
 
@@ -223,7 +224,7 @@ export async function cutVideoToFile(
     const range = normalized[0]!;
     await extractRange(src, dst, range.start, range.end - range.start, log);
   } else {
-    const tmp = path.join(os.tmpdir(), `jsclipping-cut-${crypto.randomUUID()}`);
+    const tmp = path.join(os.tmpdir(), `easyclip-cut-${crypto.randomUUID()}`);
     ensureDir(tmp);
     try {
       const ext = path.extname(src) || ".mp4";

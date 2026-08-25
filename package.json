@@ -2,7 +2,7 @@
   "name": "obs-replay-clip",
   "version": "1.0.0",
   "description": "Save + trim OBS replay buffer clips to a chosen length via obs-websocket",
-  "author": "JSClipping",
+  "author": "Easy Clip",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
