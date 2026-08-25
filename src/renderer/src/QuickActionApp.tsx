@@ -202,7 +202,7 @@ export function QuickActionApp() {
                 </AlertDescription>
               </Alert>
             ) : !connected ? (
-              <Alert variant="error">
+              <Alert variant="error" className="items-center *:[svg]:row-span-1 *:[svg]:translate-y-0">
                 <UnplugIcon />
                 <AlertTitle>OBS ist nicht verbunden</AlertTitle>
               </Alert>
