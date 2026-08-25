@@ -42,8 +42,12 @@ const api: ElectronApi = {
   renameClip: (id: string, name: string): Promise<RenameClipResult> =>
     ipcRenderer.invoke(IpcChannels.renameClip, id, name),
   deleteClip: (id: string) => ipcRenderer.invoke(IpcChannels.deleteClip, id),
-  cutClip: (id: string, ranges: CutRange[]): Promise<CutClipResult> =>
-    ipcRenderer.invoke(IpcChannels.cutClip, id, ranges),
+  cutClip: (
+    id: string,
+    ranges: CutRange[],
+    overwrite?: boolean,
+  ): Promise<CutClipResult> =>
+    ipcRenderer.invoke(IpcChannels.cutClip, id, ranges, overwrite),
   getClip: (id: string) => ipcRenderer.invoke(IpcChannels.getClip, id),
   openCutter: (id?: string) => ipcRenderer.invoke(IpcChannels.openCutter, id),
   onCutterOpenClip: (callback: (id: string) => void) => {

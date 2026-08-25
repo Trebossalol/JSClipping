@@ -202,14 +202,6 @@ export function StoragePanel({ className }: StoragePanelProps) {
                   )}
                 />
               </div>
-              <FieldDescription>
-                {formatBytes(info.freeBytes)} frei von{" "}
-                {formatBytes(info.totalBytes)}
-              </FieldDescription>
-              <Badge variant="outline" className="max-w-full">
-                <FolderIcon data-icon="inline-start" />
-                <span className="truncate">{info.outputDir}</span>
-              </Badge>
             </Field>
           ) : null}
         </FieldGroup>

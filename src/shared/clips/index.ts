@@ -13,6 +13,7 @@ export {
 } from "./store.js";
 export { importClipFromFile, scanAndImportExisting } from "./import.js";
 export {
+  cutClipOverwrite,
   cutClipToNewFile,
   deleteClip,
   removeClipByFilePath,

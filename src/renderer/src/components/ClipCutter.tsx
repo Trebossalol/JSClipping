@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,7 @@ import { formatBytes, formatDuration, formatTimecode, parseTimecode } from "../f
 import {
   PauseIcon,
   PlayIcon,
+  SaveIcon,
   ScissorsIcon,
   SplitIcon,
   Trash2Icon,
@@ -161,7 +163,7 @@ interface ClipCutterProps {
   active?: boolean;
   error?: string | null;
   onCancel: () => void;
-  onSave: (ranges: CutRange[]) => void;
+  onSave: (ranges: CutRange[], overwrite?: boolean) => void;
 }
 
 export function ClipCutter({
@@ -189,12 +191,24 @@ export function ClipCutter({
     () => ranges[0]?.id ?? null,
   );
   const [gapHint, setGapHint] = useState<string | null>(null);
+  const [saveMode, setSaveMode] = useState<"new" | "overwrite" | null>(null);
   const currentTimeRef = useRef(0);
   const rangesRef = useRef(ranges);
   const selectedIdRef = useRef(selectedId);
   rangesRef.current = ranges;
   selectedIdRef.current = selectedId;
   currentTimeRef.current = currentTime;
+
+  useEffect(() => {
+    if (busy) return;
+    const restore = saveMode === "overwrite";
+    setSaveMode(null);
+    if (!restore) return;
+    const video = videoRef.current;
+    if (!video || video.getAttribute("src") || !clip.mediaUrl) return;
+    video.src = clip.mediaUrl;
+    video.load();
+  }, [busy, clip.mediaUrl]);
 
   const selected = ranges.find((range) => range.id === selectedId) ?? null;
   const totalKeep = keepTotal(ranges);
@@ -394,33 +408,37 @@ export function ClipCutter({
     setSelectedId(neighborId(current, id));
   }
 
+  function releaseVideo(): void {
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+  }
+
+  function save(overwrite: boolean): void {
+    const next = sortedRanges(ranges).map(({ start, end }) => ({ start, end }));
+    setSaveMode(overwrite ? "overwrite" : "new");
+    if (overwrite) releaseVideo();
+    onSave(next, overwrite);
+  }
+
   return (
-    <div className="flex h-full flex-col bg-background">
-      <div className="flex items-start justify-between gap-3 border-b bg-card px-4 py-3">
-        <div className="min-w-0">
-          <h2
-            id="cut-clip-title"
-            className="flex items-center gap-1.5 text-sm font-medium"
-          >
-            <ScissorsIcon className="size-4" />
-            Clip schneiden
-          </h2>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {clip.name}
-            {clip.fileSizeBytes
-              ? ` · ${formatBytes(clip.fileSizeBytes)}`
-              : ""}
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          onClick={onCancel}
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <div className="border-b bg-card px-4 py-3">
+        <h2
+          id="cut-clip-title"
+          className="flex items-center gap-1.5 text-sm font-medium"
         >
-          Schließen
-        </Button>
+          <ScissorsIcon className="size-4" />
+          Clip schneiden
+        </h2>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {clip.name}
+          {clip.fileSizeBytes
+            ? ` · ${formatBytes(clip.fileSizeBytes)}`
+            : ""}
+        </p>
       </div>
 
       <div className="relative min-h-0 flex-1 p-4 pb-0">
@@ -624,33 +642,38 @@ export function ClipCutter({
           <p className="mt-1.5 text-xs text-muted-foreground">{gapHint}</p>
         ) : null}
 
-        <p className="mt-2 text-xs text-muted-foreground">
-          Behalten: {formatDuration(totalKeep) || "0s"} von{" "}
-          {formatDuration(duration) || "0s"}. S teilt an der Abspielposition.
-          Abschnitt anklicken, Entf löscht ihn. Der Originalclip bleibt
-          erhalten.
-        </p>
         {error ? (
           <p className="mt-2 text-sm text-destructive">{error}</p>
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap justify-end gap-1.5 border-t px-4 py-3">
-        <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
-          Abbrechen
-        </Button>
-        <Button
-          type="button"
-          disabled={!canSave}
-          onClick={() =>
-            onSave(
-              sortedRanges(ranges).map(({ start, end }) => ({ start, end })),
-            )
-          }
-        >
-          {busy ? <Spinner data-icon="inline-start" /> : <ScissorsIcon data-icon="inline-start" />}
-          Als neuen Clip speichern
-        </Button>
+      <div className="flex shrink-0 justify-end border-t px-4 py-3">
+        <ButtonGroup aria-label="Clip speichern">
+          <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+            Abbrechen
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!canSave}
+            onClick={() => save(true)}
+          >
+            {busy && saveMode === "overwrite" ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <SaveIcon data-icon="inline-start" />
+            )}
+            Original überschreiben
+          </Button>
+          <Button type="button" disabled={!canSave} onClick={() => save(false)}>
+            {busy && saveMode === "new" ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <ScissorsIcon data-icon="inline-start" />
+            )}
+            Als neuen Clip speichern
+          </Button>
+        </ButtonGroup>
       </div>
     </div>
   );

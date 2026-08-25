@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Card } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Empty,
   EmptyDescription,
@@ -42,7 +48,7 @@ import type { ClipRecord } from "@shared/ipc";
 import { formatBytes, formatDate, formatDuration } from "../format";
 import { DeleteClipDialog } from "./DeleteClipDialog";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 12;
 
 function pageItems(current: number, total: number): Array<number | "ellipsis"> {
   if (total <= 7) {
@@ -200,43 +206,62 @@ function ClipCard({
           onKeyDown={onKeyDown}
           onFocus={() => onSelect(clip.id)}
         />
-        <div className="flex flex-wrap gap-1.5">
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!!clip.missing}
-            onClick={() => onOpen(clip.id)}
-          >
-            <PlayIcon data-icon="inline-start" />
-            Öffnen
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!!clip.missing}
-            onClick={() => onCut(clip.id)}
-          >
-            <ScissorsIcon data-icon="inline-start" />
-            Schneiden
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onReveal(clip.id)}
-          >
-            <FolderOpenIcon data-icon="inline-start" />
-            Im Ordner anzeigen
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            className="ml-auto"
-            onClick={() => onDelete(clip.id)}
-          >
-            <Trash2Icon data-icon="inline-start" />
-            Löschen
-          </Button>
-        </div>
+        <ButtonGroup className="w-full">
+          <ButtonGroup className="w-full">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              disabled={!!clip.missing}
+              onClick={() => onOpen(clip.id)}
+            >
+              <PlayIcon data-icon="inline-start" />
+              Öffnen
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              disabled={!!clip.missing}
+              onClick={() => onCut(clip.id)}
+            >
+              <ScissorsIcon data-icon="inline-start" />
+              Schneiden
+            </Button>
+          </ButtonGroup>
+          <ButtonGroup>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="Im Ordner anzeigen"
+                  onClick={() => onReveal(clip.id)}
+                >
+                  <FolderOpenIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Im Ordner anzeigen</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="destructive"
+                  aria-label="Löschen"
+                  onClick={() => onDelete(clip.id)}
+                >
+                  <Trash2Icon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Löschen</TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+        </ButtonGroup>
       </div>
     </Card>
   );
@@ -378,7 +403,7 @@ export function RecentClips({
         </Empty>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17.5rem),1fr))] gap-3">
             {paged.map((clip) => (
               <ClipCard
                 key={clip.id}

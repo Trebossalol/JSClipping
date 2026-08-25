@@ -55,7 +55,7 @@ function CutterTab({
   busy: boolean;
   error?: string | null;
   onClose: () => void;
-  onSave: (ranges: CutRange[]) => void;
+  onSave: (ranges: CutRange[], overwrite?: boolean) => void;
 }) {
   const [fetched, setFetched] = useState<ClipRecord | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -227,7 +227,11 @@ export function CutterApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeId]);
 
-  async function saveCut(clipId: string, ranges: CutRange[]): Promise<void> {
+  async function saveCut(
+    clipId: string,
+    ranges: CutRange[],
+    overwrite = false,
+  ): Promise<void> {
     setBusyId(clipId);
     setCutErrors((prev) => {
       if (!(clipId in prev)) return prev;
@@ -236,13 +240,15 @@ export function CutterApp() {
       return next;
     });
     try {
-      const result = await window.api.cutClip(clipId, ranges);
+      const result = await window.api.cutClip(clipId, ranges, overwrite);
       if (!result.ok) {
         setCutErrors((prev) => ({ ...prev, [clipId]: result.error }));
         toast.error(result.error);
         return;
       }
-      toast.success("Neuer Clip gespeichert.");
+      toast.success(
+        overwrite ? "Clip überschrieben." : "Neuer Clip gespeichert.",
+      );
       closeTab(clipId);
     } finally {
       setBusyId(null);
@@ -250,7 +256,7 @@ export function CutterApp() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       {tabIds.length === 0 ? (
         <Empty className="min-h-0 flex-1 border-0">
           <EmptyHeader>
@@ -261,13 +267,12 @@ export function CutterApp() {
             <EmptyDescription>
               {availableClips.length === 0
                 ? "Lege zuerst Clips in der Bibliothek an."
-                : "Wähle einen Clip aus, um ihn zu schneiden. Weitere Clips öffnest du in neuen Tabs."}
+                : "Wähle einen Clip aus um ihn zu bearbeiten."}
             </EmptyDescription>
           </EmptyHeader>
           {availableClips.length > 0 ? (
             <EmptyContent>
               <Button type="button" onClick={() => setPickerOpen(true)}>
-                <FilmIcon data-icon="inline-start" />
                 Clip auswählen
               </Button>
             </EmptyContent>
@@ -282,7 +287,7 @@ export function CutterApp() {
           <div className="flex shrink-0 items-center gap-1 border-b bg-card px-1">
             <TabsList
               variant="line"
-              className="h-10 min-w-0 flex-1 justify-start overflow-x-auto rounded-none bg-transparent p-0"
+              className="no-scrollbar h-10 min-w-0 flex-1 justify-start overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0"
             >
               {tabIds.map((id) => {
                 const clip = clips.find((item) => item.id === id);
@@ -336,7 +341,7 @@ export function CutterApp() {
                 busy={busyId === id}
                 error={cutErrors[id] ?? null}
                 onClose={() => closeTab(id)}
-                onSave={(ranges) => void saveCut(id, ranges)}
+                onSave={(ranges, overwrite) => void saveCut(id, ranges, overwrite)}
               />
             </TabsContent>
           ))}

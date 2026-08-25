@@ -25,6 +25,7 @@ import {
   type AppConfig,
 } from "../shared/config.js";
 import {
+  cutClipOverwrite,
   cutClipToNewFile,
   deleteClip,
   findClip,
@@ -807,17 +808,21 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IpcChannels.cutClip,
-    async (_event, id: string, ranges: CutRange[]): Promise<CutClipResult> => {
+    async (
+      _event,
+      id: string,
+      ranges: CutRange[],
+      overwrite?: boolean,
+    ): Promise<CutClipResult> => {
       if (cutting) {
         return { ok: false, error: "Ein Clip wird bereits geschnitten." };
       }
       cutting = true;
       try {
-        const result = await cutClipToNewFile(
-          { appDataDir, outputDir: config.CLIP_OUTPUT_DIR },
-          id,
-          ranges,
-        );
+        const options = { appDataDir, outputDir: config.CLIP_OUTPUT_DIR };
+        const result = overwrite
+          ? await cutClipOverwrite(options, id, ranges)
+          : await cutClipToNewFile(options, id, ranges);
         if (result.ok) {
           sendClipsChanged();
           return { ok: true, clip: withClipUrls([result.clip])[0]! };

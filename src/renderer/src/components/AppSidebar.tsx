@@ -6,6 +6,7 @@ import {
   ScissorsIcon,
   SettingsIcon,
 } from "lucide-react";
+import logoUrl from "../../../../resources/logo.svg";
 import {
   Collapsible,
   CollapsibleContent,
@@ -63,12 +64,14 @@ export function AppSidebar({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" tooltip={APP_NAME}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <ScissorsIcon />
-              </div>
+              <img
+                src={logoUrl}
+                alt=""
+                className="size-8 rounded-lg"
+              />
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{APP_NAME}</span>
-                <span className="truncate text-xs">OBS-Wiederholungspuffer</span>
+                <span className="truncate font-bold">{APP_NAME}</span>
+                <span className="truncate text-xs">OBS Clipping Software</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>

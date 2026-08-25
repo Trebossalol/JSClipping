@@ -330,7 +330,7 @@ export function SettingsPanel({
             <CardDescription>Verbindung zu OBS ReplayBuffer</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <Alert>
+            <Alert variant="info">
               <InfoIcon />
               <AlertTitle>WebSocket aktivieren</AlertTitle>
               <AlertDescription>

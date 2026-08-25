@@ -1,7 +1,10 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { cutVideoToFile } from "../clip-service.js";
 import type { ClipRecord, CutRange } from "../ipc.js";
+import { generateThumbnail } from "../thumbnail.js";
 import { ignorePathTemporarily } from "./ignore.js";
 import { importClipFromFile } from "./import.js";
 import { sanitizeFileStem, uniquePath } from "./files.js";
@@ -9,6 +12,7 @@ import {
   findClip,
   listClips,
   readStore,
+  thumbnailsDir,
   unlinkThumbnail,
   writeStore,
 } from "./store.js";
@@ -152,5 +156,65 @@ export async function cutClipToNewFile(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, error: message };
+  }
+}
+
+export async function cutClipOverwrite(
+  options: ClipsStoreOptions,
+  id: string,
+  ranges: CutRange[],
+): Promise<{ ok: true; clip: ClipRecord } | { ok: false; error: string }> {
+  const { appDataDir } = options;
+  const clip = findClip(appDataDir, id);
+  if (!clip) return { ok: false, error: "Clip nicht gefunden." };
+  if (!clip.filePath || !fs.existsSync(clip.filePath)) {
+    return { ok: false, error: "Die Clip-Datei fehlt." };
+  }
+
+  const ext = path.extname(clip.filePath) || ".mp4";
+  const tempDest = path.join(
+    os.tmpdir(),
+    `easyclip-overwrite-${crypto.randomUUID()}${ext}`,
+  );
+
+  ignorePathTemporarily(clip.filePath, 60_000);
+  try {
+    const { durationSeconds } = await cutVideoToFile(
+      clip.filePath,
+      tempDest,
+      ranges,
+    );
+    ignorePathTemporarily(clip.filePath, 15_000);
+    fs.copyFileSync(tempDest, clip.filePath);
+
+    const thumbnailPath = await generateThumbnail(
+      clip.filePath,
+      thumbnailsDir(appDataDir),
+      clip.id,
+    );
+
+    const clips = readStore(appDataDir);
+    const index = clips.findIndex((item) => item.id === id);
+    if (index < 0) {
+      return { ok: false, error: "Clip nicht gefunden." };
+    }
+    const updated: ClipRecord = {
+      ...clips[index]!,
+      durationSeconds,
+      thumbnailPath,
+      missing: false,
+    };
+    clips[index] = updated;
+    writeStore(appDataDir, clips);
+    return { ok: true, clip: updated };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  } finally {
+    try {
+      if (fs.existsSync(tempDest)) fs.unlinkSync(tempDest);
+    } catch {
+      // Temp cleanup is best-effort.
+    }
   }
 }

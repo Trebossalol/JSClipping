@@ -264,13 +264,6 @@ export function App() {
               />
             )}
           </div>
-          <footer className="shrink-0 border-t bg-card px-5 py-2.5">
-            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-              <InfoIcon className="mt-px size-3 shrink-0" />
-              Beim Schließen des Fensters bleibt {APP_NAME} im Infobereich. Beende
-              die App über das Infobereich-Menü.
-            </p>
-          </footer>
         </SidebarInset>
       </SidebarProvider>
       <Toaster theme="dark" />

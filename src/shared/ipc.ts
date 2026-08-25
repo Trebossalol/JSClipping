@@ -116,7 +116,11 @@ export interface ElectronApi {
   onClipsChanged(callback: (clips: ClipRecord[]) => void): () => void;
   renameClip(id: string, name: string): Promise<RenameClipResult>;
   deleteClip(id: string): Promise<{ ok: boolean; error?: string }>;
-  cutClip(id: string, ranges: CutRange[]): Promise<CutClipResult>;
+  cutClip(
+    id: string,
+    ranges: CutRange[],
+    overwrite?: boolean,
+  ): Promise<CutClipResult>;
   getClip(id: string): Promise<ClipRecord | null>;
   openCutter(id?: string): Promise<{ ok: boolean; error?: string }>;
   onCutterOpenClip(callback: (id: string) => void): () => void;

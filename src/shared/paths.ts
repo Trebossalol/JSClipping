@@ -147,7 +147,7 @@ export function validateClipSeconds(
     return `Clip-Länge muss mindestens ${MIN_CLIP_PRESET_SECONDS} Sekunde betragen.`;
   }
   if (maxSeconds != null && maxSeconds > 0 && n > maxSeconds) {
-    return `Clip-Länge darf die OBS-Wiederholungszeit von ${maxSeconds} Sekunden nicht überschreiten.`;
+    return `Clip-Länge darf die OBS Wiederholungspufferzeit von ${maxSeconds} Sekunden nicht überschreiten.`;
   }
   return null;
 }
