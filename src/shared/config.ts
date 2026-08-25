@@ -6,7 +6,7 @@ import {
   MAX_CLIP_PRESETS,
   normalizeClipPresets,
 } from "./ipc.js";
-import { ensureDir, getAppDataDir, getRepoRoot, isPackagedApp } from "./paths.js";
+import { ensureDir, getAppDataDir } from "./paths.js";
 
 export const ConfigSchema = z.object({
   OBS_URL: z.url(),
@@ -44,45 +44,6 @@ export function configPath(appDataDir?: string): string {
   return path.join(appDataDir ?? resolveAppDataDir(), "config.json");
 }
 
-function parseDotEnv(content: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    out[key] = value;
-  }
-  return out;
-}
-
-function tryLoadEnvFile(): AppConfig | null {
-  if (isPackagedApp()) return null;
-  const envPath = path.join(getRepoRoot(), ".env");
-  if (!fs.existsSync(envPath)) return null;
-  try {
-    const parsed = parseDotEnv(fs.readFileSync(envPath, "utf8"));
-    const candidate = {
-      OBS_URL: parsed.OBS_URL,
-      OBS_PASSWORD: parsed.OBS_PASSWORD,
-      CLIP_OUTPUT_DIR: parsed.CLIP_OUTPUT_DIR,
-      AUTOSTART: parsed.AUTOSTART === "true",
-    };
-    const result = ConfigSchema.safeParse(candidate);
-    return result.success ? result.data : null;
-  } catch {
-    return null;
-  }
-}
-
 export function loadConfig(appDataDir?: string): AppConfig {
   const dir = appDataDir ?? resolveAppDataDir();
   ensureDir(dir);
@@ -96,8 +57,7 @@ export function loadConfig(appDataDir?: string): AppConfig {
     return ConfigSchema.parse(raw);
   }
 
-  const fromEnv = tryLoadEnvFile();
-  const config = fromEnv ?? { ...DEFAULTS };
+  const config = { ...DEFAULTS };
   saveConfig(config, dir);
   return config;
 }

@@ -109,15 +109,7 @@ npm run dev
 | OBS password | From **OBS → Tools → WebSocket Server Settings** |
 | Clip output folder | Where trimmed clips are written (`YYYY\MM` subfolders are created automatically) |
 
-**Migration:** if you still have a repo `.env` from older versions, the first launch copies those values into AppData and then uses the JSON file going forward.
-
-Optional one-time `.env` (migration only):
-
-```env
-OBS_URL=ws://localhost:4455
-OBS_PASSWORD=CHANGE_ME
-CLIP_OUTPUT_DIR=C:\\Clips
-```
+First launch writes defaults (`ws://localhost:4455`, password `CHANGE_ME`, output `C:\Clips`) into AppData until you change them in Settings.
 
 ### 4. Enable the OBS WebSocket server
 
@@ -236,7 +228,7 @@ App data (`%APPDATA%\JSClipping\`):
 | `Could not connect to OBS WebSocket` / red status pill | OBS is closed, WebSocket is off, wrong password/port. Recheck **Tools → WebSocket Server Settings** and Electron Settings. |
 | `Could not determine saved replay buffer file path` | Replay Buffer is not running, or OBS has not flushed the file within ~10s. |
 | Action Ring does nothing | Packaged: confirm the argument is `--clip 30`. From source: open the newest file in `logs\` and confirm `node_modules\.bin\tsx.cmd` exists (`npm install`). |
-| Settings / clips not shared with CLI | Both must use `%APPDATA%\JSClipping\`. Do not keep editing a stale `.env` after migration. |
+| Settings / clips not shared with CLI | Both must use `%APPDATA%\JSClipping\config.json`. |
 
 ---
 
