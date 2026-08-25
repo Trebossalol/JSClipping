@@ -35,7 +35,7 @@ The **Electron app** sits in the Windows tray, shows OBS connection status, lets
 - **Storage** — output folder plus disk usage of clips vs. free space
 - **Single instance** — a second `EasyClip.exe --clip 30` is handed to the running process
 
-Clips land in `CLIP_OUTPUT_DIR\YYYY\MM\` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Each CLI / `--clip` run also writes a log (`logs/` in the repo from source; `%APPDATA%\EasyClip\logs` when packaged). After a successful trim, Easy Clip tries to delete the full OBS replay dump so you only keep the cut.
+Clips land in `CLIP_OUTPUT_DIR\YYYY\MM\` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Each `--clip` run also writes a log (`logs/` in the repo from source; `%APPDATA%\EasyClip\logs` when packaged). After a successful trim, Easy Clip tries to delete the full OBS replay dump so you only keep the cut.
 
 The UI is German; this README is English.
 
@@ -98,7 +98,7 @@ npm install
 
 ### 3. Configure settings
 
-Settings live in **`%APPDATA%\EasyClip\config.json`** (shared by the Electron app, Action Ring, and `clip.bat`).
+Settings live in **`%APPDATA%\EasyClip\config.json`** (shared by the Electron app and Action Ring).
 
 **Easiest:** start the app and fill in Settings:
 
@@ -111,7 +111,7 @@ npm run dev
 | OBS WebSocket URL | Default `ws://localhost:4455` |
 | OBS password | From **OBS → Tools → WebSocket Server Settings** |
 | Clip output folder | Where trimmed clips are written (`YYYY\MM` subfolders are created automatically). Point this at the **same folder OBS uses for Replay Buffer files**. |
-| Clip presets | Buttons in the library (1–6 lengths, minimum 5 seconds). Action Ring / CLI still pass seconds as an argument. |
+| Clip presets | Buttons in the library (1–6 lengths, minimum 5 seconds). Action Ring still passes `--clip <seconds>`. |
 | Autostart | Launch Easy Clip + OBS (Replay Buffer, tray) at Windows logon |
 
 First launch writes defaults (`ws://localhost:4455`, password `CHANGE_ME`, output `C:\Clips`, presets `30 / 60 / 300 / 600`) into AppData until you change them in Settings.
@@ -181,7 +181,7 @@ Opens a separate window. Keep one or more ranges, split a range at the playhead,
 
 ## Logitech Options+ — Action Ring
 
-**Packaged (recommended):** Open application / Open a file = `C:\Program Files\EasyClip\EasyClip.exe`. Argument:
+Open application / Open a file = `C:\Program Files\EasyClip\EasyClip.exe` (or the portable EXE). Argument:
 
 | Segment label | Argument |
 |---|---|
@@ -192,19 +192,17 @@ Opens a separate window. Keep one or more ranges, split a range at the playhead,
 
 `--clip=30` works too. The number is seconds, not limited to those four — use whatever matches your presets.
 
-**From source:** point Options+ at `scripts\clip.bat` with argument `30` / `60` / `300` / `600` (not `node.exe`). The batch file `cd`s into the repo root and runs the local `tsx` binary.
+If Easy Clip is already in the tray, that instance clips. Otherwise it starts, clips, and stays in the tray.
 
 ---
 
-## Manual CLI test
+## Manual `--clip` test
 
-With OBS open and the Replay Buffer **running**:
+With OBS open, the Replay Buffer **running**, and Easy Clip installed (or the portable EXE):
 
 ```powershell
-npm run clip -- 30
+& "C:\Program Files\EasyClip\EasyClip.exe" --clip 30
 ```
-
-Or `scripts\clip.bat 30`. Same thing.
 
 Clips are written under `CLIP_OUTPUT_DIR\YYYY\MM\`.
 
@@ -220,12 +218,9 @@ EasyClip/
 ├── LICENSE
 ├── scripts/
 │   ├── autostart.bat         # OBS --startreplaybuffer --minimize-to-tray
-│   ├── clip.bat              # clip.bat 30 | 60 | 300 | 600 (dev)
 │   └── copy-ffmpeg.mjs       # copies bundled binaries before dist
-├── logs/                     # CLI logs when running from source
+├── logs/                     # clip logs when running from source
 └── src/
-    ├── cli/
-    │   └── obs_replay_clip.ts
     ├── shared/
     │   ├── config.ts         # AppData config.json
     │   ├── clip-service.ts   # save+trim and cut (ffmpeg -c copy)
@@ -255,9 +250,8 @@ App data (`%APPDATA%\EasyClip\`):
 | `Could not connect to OBS WebSocket` / red status pill | OBS is closed, WebSocket is off, wrong password/port. Recheck **Tools → WebSocket Server Settings** and Easy Clip Settings. |
 | `Could not determine saved replay buffer file path` | Replay Buffer is not running, or OBS has not flushed the file within ~10s. Match Easy Clip’s output folder to OBS’s Replay Buffer path. |
 | Preset button disabled / “longer than the OBS buffer” | Raise **Maximum Replay Time** in OBS, or shorten the preset. |
-| Action Ring does nothing | Packaged: confirm the argument is `--clip 30`. From source: open the newest file in `logs\` and confirm `node_modules\.bin\tsx.cmd` exists (`npm install`). |
+| Action Ring does nothing | Confirm Open file is `EasyClip.exe` and the argument is `--clip 30`. If the app is already in the tray, that instance should clip; check `%APPDATA%\EasyClip\logs`. |
 | Autostart does not launch OBS | Confirm `obs64.exe` is in the default Program Files path, or set `OBS_PATH`. |
-| Settings / clips not shared with CLI | Both must use `%APPDATA%\EasyClip\config.json`. |
 
 ---
 
