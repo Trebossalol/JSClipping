@@ -44,31 +44,33 @@ export function CommandBar({
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-4" />
       <ObsStatusPill status={obsStatus} />
-      <ButtonGroup className="flex-wrap">
-        {presets.map(({ seconds, label, hint }) => {
-          const replayMax = obsStatus?.replayMaxSeconds ?? null;
-          const overBuffer = replayMax != null && seconds > replayMax;
-          const active = lastSeconds === seconds;
-          return (
-            <Button
-              key={seconds}
-              type="button"
-              size="sm"
-              variant={active ? "default" : "outline"}
-              disabled={!canClip || overBuffer}
-              title={
-                overBuffer && replayMax != null
-                  ? `Länger als der OBS-Puffer (${formatDuration(replayMax)})`
-                  : (disabledReason ?? hint)
-              }
-              onClick={() => onCreate(seconds)}
-            >
-              <ClockIcon data-icon="inline-start" />
-              {label}
-            </Button>
-          );
-        })}
-      </ButtonGroup>
+      {obsStatus && obsStatus.connected === true ? (
+        <ButtonGroup className="flex-wrap">
+          {presets.map(({ seconds, label, hint }) => {
+            const replayMax = obsStatus.replayMaxSeconds ?? null;
+            const overBuffer = replayMax != null && seconds > replayMax;
+            const active = lastSeconds === seconds;
+            return (
+              <Button
+                key={seconds}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                disabled={!canClip || overBuffer}
+                title={
+                  overBuffer && replayMax != null
+                    ? `Länger als der OBS-Puffer (${formatDuration(replayMax)})`
+                    : (disabledReason ?? hint)
+                }
+                onClick={() => onCreate(seconds)}
+              >
+                <ClockIcon data-icon="inline-start" />
+                {label}
+              </Button>
+            );
+          })}
+        </ButtonGroup>
+      ) : null}
     </header>
   );
 }
