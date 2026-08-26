@@ -1,31 +1,51 @@
-import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { formatDuration } from "@/format";
+import { APP_NAME } from "@shared/app.config";
 import type { ObsStatus } from "@shared/ipc";
 import {
   AlertCircleIcon,
   CircleCheckIcon,
-  MonitorPlayIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-export const CLIP_PRESETS = [
-  { seconds: 30, label: "30s", hint: "Letzte 30 Sekunden" },
-  { seconds: 60, label: "1m", hint: "Letzte 1 Minute" },
-  { seconds: 300, label: "5m", hint: "Letzte 5 Minuten" },
-  { seconds: 600, label: "10m", hint: "Ganzer Puffer" },
-] as const;
+export function clipPresetsFromSeconds(values: number[]): Array<{
+  seconds: number;
+  label: string;
+  hint: string;
+}> {
+  return values.map((seconds) => ({
+    seconds,
+    label: formatDuration(seconds),
+    hint: `Letzte ${formatDuration(seconds)}`,
+  }));
+}
 
 export function getClipAvailability(
   obsStatus: ObsStatus | null,
   busy: boolean,
-): { connected: boolean; replayOff: boolean; canClip: boolean } {
+  clipScene?: string | null,
+): {
+  connected: boolean;
+  replayOff: boolean;
+  sceneMismatch: boolean;
+  canClip: boolean;
+} {
   const connected = obsStatus?.connected === true;
   const replayOff = connected && obsStatus.replayBufferActive === false;
-  const canClip = connected && obsStatus.replayBufferActive !== false && !busy;
-  return { connected, replayOff, canClip };
+  const scene = clipScene?.trim() || null;
+  const sceneMismatch =
+    connected &&
+    scene != null &&
+    obsStatus.currentScene != null &&
+    obsStatus.currentScene !== scene;
+  const canClip =
+    connected &&
+    obsStatus.replayBufferActive !== false &&
+    !busy &&
+    !sceneMismatch;
+  return { connected, replayOff, sceneMismatch, canClip };
 }
 
 export async function startObsWithAutostart(): Promise<void> {
@@ -49,11 +69,21 @@ export async function stopObsProcess(): Promise<void> {
 interface ClipActionsProps {
   busy: boolean;
   obsStatus: ObsStatus | null;
+  clipScene?: string | null;
   message: { text: string; kind: "ok" | "err" } | null;
 }
 
-export function ClipActions({ busy, obsStatus, message }: ClipActionsProps) {
-  const { replayOff } = getClipAvailability(obsStatus, busy);
+export function ClipActions({
+  busy,
+  obsStatus,
+  clipScene,
+  message,
+}: ClipActionsProps) {
+  const { replayOff, sceneMismatch } = getClipAvailability(
+    obsStatus,
+    busy,
+    clipScene,
+  );
 
   if (busy) {
     return (
@@ -71,8 +101,23 @@ export function ClipActions({ busy, obsStatus, message }: ClipActionsProps) {
         <TriangleAlertIcon />
         <AlertTitle>Wiederholungspuffer ist aus</AlertTitle>
         <AlertDescription>
-          JSClipping speichert nur den Puffer — starte ihn in OBS oder nutze
+          {APP_NAME} speichert nur den Puffer — starte ihn in OBS oder nutze
           autostart.bat.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (sceneMismatch) {
+    const wanted = clipScene?.trim() ?? "";
+    const current = obsStatus?.currentScene ?? "";
+    return (
+      <Alert>
+        <TriangleAlertIcon />
+        <AlertTitle>Falsche OBS-Szene</AlertTitle>
+        <AlertDescription>
+          Clips nutzen „{wanted}“, OBS ist auf „{current}“. Starte OBS über{" "}
+          {APP_NAME}, damit der Wiederholungspuffer die richtige Szene aufzeichnet.
         </AlertDescription>
       </Alert>
     );

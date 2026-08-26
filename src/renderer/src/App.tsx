@@ -3,20 +3,37 @@ import { toast } from "sonner";
 import type { AppConfigDto, ClipRecord, ObsStatus } from "@shared/ipc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
-import { InfoIcon } from "lucide-react";
-import { AppHeader, type AppView } from "./components/AppHeader";
+import {
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+  SidebarProvider,
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { formatDuration } from "./format";
+import { formatHotkey } from "@shared/hotkeys";
+import { AppSidebar, type AppView } from "./components/AppSidebar";
 import { ClipActions } from "./components/ClipActions";
+import { CommandBar } from "./components/CommandBar";
 import {
   RecentClips,
   type ClipFilter,
 } from "./components/RecentClips";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { SettingsPanel } from "./components/settings/SettingsPanel";
+import { useTopLoader } from "./components/TopLoadingBar";
 
 function untitledCount(clips: ClipRecord[]): number {
   return clips.filter((c) => !c.namedByUser && !c.missing).length;
 }
 
 export function App() {
+  const loader = useTopLoader();
   const [config, setConfig] = useState<AppConfigDto | null>(null);
   const [obsStatus, setObsStatus] = useState<ObsStatus | null>(null);
   const [clips, setClips] = useState<ClipRecord[]>([]);
@@ -48,12 +65,42 @@ export function App() {
       setSelectedId(list[0]?.id ?? null);
     }
 
-    void boot();
+    loader.begin();
+    void boot().finally(() => {
+      if (!cancelled) loader.end();
+    });
     unsubs.push(window.api.onObsStatus(setObsStatus));
     unsubs.push(window.api.onClipsChanged(setClips));
+    unsubs.push(
+      window.api.onHotkeysFailed((accelerators) => {
+        toast.error(
+          `Tastenkürzel belegt: ${accelerators.map((item) => formatHotkey(item)).join(", ")}`,
+        );
+      }),
+    );
+    unsubs.push(
+      window.api.onHotkeyClip(({ seconds, result, title }) => {
+        if (result.ok) {
+          setLastSeconds(seconds);
+          selectNewestRef.current = true;
+          const named = title?.trim();
+          setClipMessage({
+            text: named
+              ? `Die letzten ${formatDuration(seconds)} wurden als „${named}“ gespeichert.`
+              : `Die letzten ${formatDuration(seconds)} wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
+            kind: "ok",
+          });
+          toast.success(named ? `„${named}“ gespeichert.` : "Clip gespeichert.");
+        } else {
+          setClipMessage({ text: result.error, kind: "err" });
+          toast.error(result.error);
+        }
+      }),
+    );
 
     return () => {
       cancelled = true;
+      loader.end();
       for (const unsub of unsubs) unsub();
     };
   }, []);
@@ -67,7 +114,7 @@ export function App() {
   }, [clips]);
 
   async function saveConfig(next: AppConfigDto): Promise<AppConfigDto> {
-    const saved = await window.api.saveConfig(next);
+    const saved = await loader.wrap(() => window.api.saveConfig(next));
     setConfig(saved);
     return saved;
   }
@@ -76,12 +123,12 @@ export function App() {
     setClippingBusy(true);
     setClipMessage(null);
     try {
-      const result = await window.api.createClip(seconds);
+      const result = await loader.wrap(() => window.api.createClip(seconds));
       if (result.ok) {
         setLastSeconds(seconds);
         selectNewestRef.current = true;
         setClipMessage({
-          text: `Die letzten ${seconds}s wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
+          text: `Die letzten ${formatDuration(seconds)} wurden gespeichert. Benenne den Clip unten um, um die Datei anzupassen.`,
           kind: "ok",
         });
         toast.success("Clip gespeichert.");
@@ -105,15 +152,17 @@ export function App() {
   }
 
   async function renameClip(id: string, name: string): Promise<void> {
-    const result = await window.api.renameClip(id, name);
-    if (!result.ok) {
-      setClipMessage({ text: result.error, kind: "err" });
-      toast.error(result.error);
-      setClips(await window.api.listClips());
-      return;
-    }
-    setClips((prev) => prev.map((c) => (c.id === id ? result.clip : c)));
-    toast.success("Clip umbenannt.");
+    await loader.wrap(async () => {
+      const result = await window.api.renameClip(id, name);
+      if (!result.ok) {
+        setClipMessage({ text: result.error, kind: "err" });
+        toast.error(result.error);
+        setClips(await window.api.listClips());
+        return;
+      }
+      setClips((prev) => prev.map((c) => (c.id === id ? result.clip : c)));
+      toast.success("Clip umbenannt.");
+    });
   }
 
   function revealClip(id: string): void {
@@ -121,100 +170,141 @@ export function App() {
     void window.api.revealClip(id);
   }
 
-  async function deleteClip(id: string): Promise<void> {
-    setSelectedId(id);
-    const result = await window.api.deleteClip(id);
+  async function openCutter(id?: string): Promise<void> {
+    if (id) setSelectedId(id);
+    const result = await window.api.openCutter(id);
     if (!result.ok) {
-      const text = result.error ?? "Clip konnte nicht gelöscht werden";
+      const text = result.error ?? "Schneidefenster konnte nicht geöffnet werden.";
       setClipMessage({ text, kind: "err" });
       toast.error(text);
-      setClips(await window.api.listClips());
-      return;
     }
-    setClips((prev) => prev.filter((c) => c.id !== id));
-    setSelectedId((current) => {
-      if (current !== id) return current;
-      const remaining = clips.filter((c) => c.id !== id);
-      return remaining[0]?.id ?? null;
+  }
+
+  async function deleteClip(id: string): Promise<void> {
+    setSelectedId(id);
+    await loader.wrap(async () => {
+      const result = await window.api.deleteClip(id);
+      if (!result.ok) {
+        const text = result.error ?? "Clip konnte nicht gelöscht werden";
+        setClipMessage({ text, kind: "err" });
+        toast.error(text);
+        setClips(await window.api.listClips());
+        return;
+      }
+      setClips((prev) => prev.filter((c) => c.id !== id));
+      setSelectedId((current) => {
+        if (current !== id) return current;
+        const remaining = clips.filter((c) => c.id !== id);
+        return remaining[0]?.id ?? null;
+      });
+      toast.success("Clip gelöscht.");
     });
-    toast.success("Clip gelöscht.");
   }
 
   if (!config) {
     return (
-      <div className="flex h-full flex-col">
-        <div className="border-b bg-card px-5 py-3.5">
-          <div className="flex items-center justify-between gap-3">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-7 w-32" />
-          </div>
-          <div className="mt-2.5 flex items-center gap-2">
-            <Skeleton className="h-7 w-40" />
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="h-7 w-14" />
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col gap-4 px-5 py-5">
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
+      <TooltipProvider>
+        <SidebarProvider className="h-full min-h-0">
+          <Sidebar collapsible="icon">
+            <SidebarHeader>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuSkeleton showIcon />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarHeader>
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuSkeleton showIcon />
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuSkeleton showIcon />
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+          </Sidebar>
+          <SidebarInset className="min-h-0 overflow-hidden">
+            <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+              <Skeleton className="size-7" />
+              <Skeleton className="h-7 w-32" />
+              <Skeleton className="h-7 w-14" />
+              <Skeleton className="h-7 w-14" />
+              <Skeleton className="h-7 w-14" />
+            </header>
+            <div className="flex flex-1 flex-col gap-4 px-5 py-5">
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-64 w-full" />
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
         <Toaster theme="dark" />
-      </div>
+      </TooltipProvider>
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <AppHeader
-        view={view}
-        onViewChange={setView}
-        obsStatus={obsStatus}
-        untitledCount={untitledCount(clips)}
-        onUntitled={() => {
-          setView("library");
-          setFilter("untitled");
-        }}
-        busy={clippingBusy}
-        lastSeconds={lastSeconds}
-        onCreate={(seconds) => void createClip(seconds)}
-      />
+    <TooltipProvider>
+      <SidebarProvider className="h-full min-h-0">
+        <AppSidebar
+          view={view}
+          onViewChange={setView}
+          untitledCount={untitledCount(clips)}
+          onUntitled={() => {
+            setView("library");
+            setFilter("untitled");
+          }}
+          onOpenCutter={() => void openCutter()}
+        />
 
-      <main className="flex-1 overflow-y-auto px-5 py-5">
-        {view === "library" ? (
-          <div className="flex flex-col gap-5">
-            <ClipActions
-              busy={clippingBusy}
-              obsStatus={obsStatus}
-              message={clipMessage}
-            />
-            <RecentClips
-              clips={clips}
-              filter={filter}
-              onFilterChange={setFilter}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onOpen={(id) => void openClip(id)}
-              onRename={(id, name) => void renameClip(id, name)}
-              onReveal={revealClip}
-              onDelete={(id) => deleteClip(id)}
-            />
+        <SidebarInset className="min-h-0 overflow-hidden">
+          <CommandBar
+            obsStatus={obsStatus}
+            busy={clippingBusy}
+            lastSeconds={lastSeconds}
+            clipPresets={config.CLIP_PRESETS}
+            clipScene={config.OBS_SCENE}
+            onCreate={(seconds) => void createClip(seconds)}
+            onGoToObsSettings={() => setView("obs")}
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            {view === "library" ? (
+              <div className="flex flex-col gap-5">
+                <ClipActions
+                  busy={clippingBusy}
+                  obsStatus={obsStatus}
+                  clipScene={config.OBS_SCENE}
+                  message={clipMessage}
+                />
+                <RecentClips
+                  clips={clips}
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onOpen={(id) => void openClip(id)}
+                  onRename={(id, name) => void renameClip(id, name)}
+                  onReveal={revealClip}
+                  onDelete={(id) => deleteClip(id)}
+                  onCut={(id) => void openCutter(id)}
+                />
+              </div>
+            ) : (
+              <SettingsPanel
+                section={view}
+                config={config}
+                replayMaxSeconds={obsStatus?.replayMaxSeconds ?? null}
+                onSave={saveConfig}
+              />
+            )}
           </div>
-        ) : (
-          <SettingsPanel config={config} onSave={saveConfig} />
-        )}
-      </main>
-
-      <footer className="border-t bg-card px-5 py-2.5">
-        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-          <InfoIcon className="mt-px size-3 shrink-0" />
-          Beim Schließen des Fensters bleibt JSClipping im Infobereich. Beende
-          die App über das Infobereich-Menü.
-        </p>
-      </footer>
-
+        </SidebarInset>
+      </SidebarProvider>
       <Toaster theme="dark" />
-    </div>
+    </TooltipProvider>
   );
 }

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Card } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Empty,
   EmptyDescription,
@@ -32,15 +38,17 @@ import {
   FileXIcon,
   FilmIcon,
   FolderOpenIcon,
+  HardDriveIcon,
   LayoutGridIcon,
   PlayIcon,
+  ScissorsIcon,
   Trash2Icon,
 } from "lucide-react";
 import type { ClipRecord } from "@shared/ipc";
-import { formatDate, formatDuration } from "../format";
+import { formatBytes, formatDate, formatDuration } from "../format";
 import { DeleteClipDialog } from "./DeleteClipDialog";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 12;
 
 function pageItems(current: number, total: number): Array<number | "ellipsis"> {
   if (total <= 7) {
@@ -83,6 +91,7 @@ interface ClipCardProps {
   onRename: (id: string, name: string) => void;
   onReveal: (id: string) => void;
   onDelete: (id: string) => void;
+  onCut: (id: string) => void;
 }
 
 function ClipCard({
@@ -93,6 +102,7 @@ function ClipCard({
   onRename,
   onReveal,
   onDelete,
+  onCut,
 }: ClipCardProps) {
   const [name, setName] = useState(clip.name);
 
@@ -113,6 +123,10 @@ function ClipCard({
   }
 
   const duration = formatDuration(clip.durationSeconds);
+  const fileSize =
+    clip.fileSizeBytes != null && clip.fileSizeBytes > 0
+      ? formatBytes(clip.fileSizeBytes)
+      : "";
 
   return (
     <Card
@@ -150,25 +164,31 @@ function ClipCard({
             )}
           </div>
         )}
-        <div className="absolute right-2 bottom-2 flex gap-1">
-          {duration ? (
-            <Badge variant="secondary">
-              <ClockIcon data-icon="inline-start" />
-              {duration}
-            </Badge>
-          ) : null}
-          {clip.missing ? (
-            <Badge variant="destructive">
-              <FileXIcon data-icon="inline-start" />
-              Fehlt
-            </Badge>
-          ) : null}
-          {!clip.namedByUser && !clip.missing ? (
-            <Badge variant="outline">
-              <FilePenIcon data-icon="inline-start" />
-              Unbenannt
-            </Badge>
-          ) : null}
+        <div className="absolute inset-x-2 bottom-2 flex items-end justify-between gap-1">
+          <Badge variant="secondary" className="max-w-[min(100%,11rem)] truncate">
+            <CalendarIcon data-icon="inline-start" />
+            {formatDate(clip.createdAt)}
+          </Badge>
+          <div className="flex min-w-0 flex-wrap justify-end gap-1">
+            {duration ? (
+              <Badge variant="secondary">
+                <ClockIcon data-icon="inline-start" />
+                {duration}
+              </Badge>
+            ) : null}
+            {fileSize ? (
+              <Badge variant="secondary">
+                <HardDriveIcon data-icon="inline-start" />
+                {fileSize}
+              </Badge>
+            ) : null}
+            {clip.missing ? (
+              <Badge variant="destructive">
+                <FileXIcon data-icon="inline-start" />
+                Fehlt
+              </Badge>
+            ) : null}
+          </div>
         </div>
       </button>
       <div className="flex flex-col gap-2 p-2.5">
@@ -180,46 +200,62 @@ function ClipCard({
           onKeyDown={onKeyDown}
           onFocus={() => onSelect(clip.id)}
         />
-        <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <CalendarIcon className="size-3" />
-            {formatDate(clip.createdAt)}
-          </span>
-          {duration ? (
-            <span className="inline-flex items-center gap-1">
-              <ClockIcon className="size-3" />
-              {duration}
-            </span>
-          ) : null}
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!!clip.missing}
-            onClick={() => onOpen(clip.id)}
-          >
-            <PlayIcon data-icon="inline-start" />
-            Öffnen
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onReveal(clip.id)}
-          >
-            <FolderOpenIcon data-icon="inline-start" />
-            Im Ordner anzeigen
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            className="ml-auto"
-            onClick={() => onDelete(clip.id)}
-          >
-            <Trash2Icon data-icon="inline-start" />
-            Löschen
-          </Button>
-        </div>
+        <ButtonGroup className="w-full">
+          <ButtonGroup className="w-full">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              disabled={!!clip.missing}
+              onClick={() => onOpen(clip.id)}
+            >
+              <PlayIcon data-icon="inline-start" />
+              Öffnen
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="flex-1"
+              disabled={!!clip.missing}
+              onClick={() => onCut(clip.id)}
+            >
+              <ScissorsIcon data-icon="inline-start" />
+              Schneiden
+            </Button>
+          </ButtonGroup>
+          <ButtonGroup>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="Im Ordner anzeigen"
+                  onClick={() => onReveal(clip.id)}
+                >
+                  <FolderOpenIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Im Ordner anzeigen</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="destructive"
+                  aria-label="Löschen"
+                  onClick={() => onDelete(clip.id)}
+                >
+                  <Trash2Icon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Löschen</TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+        </ButtonGroup>
       </div>
     </Card>
   );
@@ -235,6 +271,7 @@ interface RecentClipsProps {
   onRename: (id: string, name: string) => void;
   onReveal: (id: string) => void;
   onDelete: (id: string) => void | Promise<void>;
+  onCut: (id: string) => void;
 }
 
 export function RecentClips({
@@ -247,6 +284,7 @@ export function RecentClips({
   onRename,
   onReveal,
   onDelete,
+  onCut,
 }: RecentClipsProps) {
   const [page, setPage] = useState(1);
   const [pageFilter, setPageFilter] = useState(filter);
@@ -337,10 +375,6 @@ export function RecentClips({
           </ToggleGroup>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Klicke auf einen Titel, um ihn zu benennen. Das Infobereich-Symbol zählt
-        noch unbenannte Clips.
-      </p>
       {visible.length === 0 ? (
         <Empty className="border border-dashed">
           <EmptyHeader>
@@ -359,7 +393,7 @@ export function RecentClips({
         </Empty>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17.5rem),1fr))] gap-3">
             {paged.map((clip) => (
               <ClipCard
                 key={clip.id}
@@ -370,6 +404,7 @@ export function RecentClips({
                 onRename={onRename}
                 onReveal={onReveal}
                 onDelete={(id) => setPendingDeleteId(id)}
+                onCut={onCut}
               />
             ))}
           </div>
