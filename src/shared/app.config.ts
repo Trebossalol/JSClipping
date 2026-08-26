@@ -24,5 +24,4 @@ export const DEFAULT_USER_CONFIG = {
     hotkey: null as string | null,
   })),
   QUICK_ACTION_HOTKEY: null as string | null,
-  ONBOARDING_HIDDEN: false,
 };

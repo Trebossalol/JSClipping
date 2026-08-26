@@ -5,4 +5,5 @@ REM Edit OBS_PATH below if your install location differs.
 set OBS_PATH="C:\Program Files\obs-studio\bin\64bit\obs64.exe"
 set OBS_DIR="C:\Program Files\obs-studio\bin\64bit"
 
-start "" /D %OBS_DIR% %OBS_PATH% --startreplaybuffer --minimize-to-tray
+if exist "%APPDATA%\obs-studio\.sentinel" rd /s /q "%APPDATA%\obs-studio\.sentinel"
+start "" /D %OBS_DIR% %OBS_PATH% --startreplaybuffer --minimize-to-tray --disable-shutdown-check

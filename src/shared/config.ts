@@ -11,7 +11,6 @@ export const ConfigSchema = z.object({
   OBS_PASSWORD: z.string().min(1),
   CLIP_OUTPUT_DIR: z.string().min(1),
   AUTOSTART: z.boolean().default(false),
-  ONBOARDING_HIDDEN: z.boolean().default(false),
   QUICK_ACTION_HOTKEY: z.preprocess(
     (value) => (typeof value === "string" ? normalizeHotkey(value) : null),
     z.string().nullable(),

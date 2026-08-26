@@ -45,15 +45,32 @@ export function ObsSection({
           <CableIcon className="size-4" />
           OBS Verbindung
         </CardTitle>
-        <CardDescription>Verbindung zu OBS ReplayBuffer</CardDescription>
+        <CardDescription>Verbindungseinstellungen zum OBS WebSocket Server.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <Alert variant="info">
           <InfoIcon />
-          <AlertTitle>WebSocket aktivieren</AlertTitle>
+          <AlertTitle>Anleitung</AlertTitle>
           <AlertDescription>
-            In OBS muss der WebSocket-Server eingeschaltet sein (Extras →
-            WebSocket-Server-Einstellungen).
+          <ol className="list-decimal ml-5 space-y-1">
+            <li>
+              OBS Studio installieren: Stelle sicher, dass die neuste Version von OBS Studio installiert ist.
+            </li>
+            <li>
+              Öffne OBS Studio und klicke auf Werkzeuge → WebSocket Server Einstellungen
+            </li>
+            <li>
+              Setze oben das Häkchen bei <code>WebSocket-Server aktivieren</code>
+            </li>
+            <li>
+              Denke dir ein Passwort aus und trage es in das Feld <code>Serverpasswort</code> ein.
+              <br/>
+              Speichere die Einstellungen und schließe das Fenster.
+            </li>
+            <li>
+              Trage das gleiche Passwort in die Einstellungen von EasyClip ein und speichere die Einstellungen.
+            </li>
+          </ol>
           </AlertDescription>
         </Alert>
         <FieldGroup>

@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -17,7 +18,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { FolderIcon, FolderOutputIcon } from "lucide-react";
+import { FolderIcon, FolderOutputIcon, InfoIcon } from "lucide-react";
 import { StoragePanel } from "../StoragePanel";
 
 interface StorageSectionProps {
@@ -40,11 +41,32 @@ export function StorageSection({
             Ausgabe
           </CardTitle>
           <CardDescription>
-            Speicherordner für Clips. Sollte der gleiche Pfad wie der OBS
-            ReplayBuffer Ausgabeordner sein.
+            Gleicher Ordner wie der OBS-Aufnahmepfad.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
+          <Alert variant="info">
+            <InfoIcon />
+            <AlertTitle>Anleitung</AlertTitle>
+            <AlertDescription>
+              <ol className="list-decimal ml-5 space-y-1">
+                <li>
+                  Öffne OBS Studio und gehe zu Datei → Einstellungen → Ausgabe → Aufnahme
+                </li>
+                <li>
+                  Setze den <code>Aufnahmepfad</code> auf denselben Ordner wie
+                  den Clip-Ausgabeordner oben.
+                  <br />
+                  Im Ausgabe-Modus <code>Erweitert</code> findest du den Pfad im
+                  Reiter <code>Aufnahme</code>.
+                </li>
+                <li>
+                  Speichere die Einstellungen in OBS mit <code>Anwenden</code>{" "}
+                  und <code>OK</code>.
+                </li>
+              </ol>
+            </AlertDescription>
+          </Alert>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="clip-output-dir">
@@ -71,8 +93,8 @@ export function StorageSection({
                 </InputGroupAddon>
               </InputGroup>
               <FieldDescription>
-                Neue Clips landen in Jahr/Monat-Ordnern. Umbenennen in der
-                Bibliothek benennt auch die Datei um.
+                Easy Clip überwacht diesen Ordner, um neue Clips zu erkennen,
+                und sortiert sie nach Jahr und Monat.
               </FieldDescription>
             </Field>
           </FieldGroup>

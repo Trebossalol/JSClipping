@@ -57,7 +57,6 @@ export interface AppConfigDto {
   AUTOSTART: boolean;
   CLIP_PRESETS: ClipPreset[];
   QUICK_ACTION_HOTKEY: string | null;
-  ONBOARDING_HIDDEN: boolean;
 }
 
 export interface ObsStatus {

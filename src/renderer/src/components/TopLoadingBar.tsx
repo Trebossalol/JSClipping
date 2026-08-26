@@ -7,7 +7,7 @@ export function TopLoadingBar({ children }: { children: ReactNode }) {
   return (
     <LoadingBarContainer
       props={{
-        color: "var(--primary)",
+        color: "#5EEAD4",
         height: 2,
         shadow: true,
         waitingTime: 300,

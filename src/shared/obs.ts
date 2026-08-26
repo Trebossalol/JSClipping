@@ -1,5 +1,24 @@
 import type { OBSWebSocket } from "obs-websocket-js";
 
+/**
+ * `localhost` often resolves to IPv6 `::1` on Windows while OBS listens on
+ * IPv4 only — try `127.0.0.1` first, then the original URL.
+ */
+export function obsWebSocketUrls(url: string): string[] {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase() === "localhost") {
+      const ipv4 = new URL(url);
+      ipv4.hostname = "127.0.0.1";
+      const rewritten = ipv4.toString();
+      return rewritten === url ? [url] : [rewritten, url];
+    }
+  } catch {
+    // keep the original string
+  }
+  return [url];
+}
+
 export function parseObsProfileSeconds(
   value: string | undefined | null,
 ): number | null {

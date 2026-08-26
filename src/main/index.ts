@@ -55,7 +55,7 @@ import {
 } from "../shared/ipc.js";
 import { getStorageInfo } from "../shared/storage.js";
 import { createRunLog } from "../shared/log.js";
-import { getObsReplayMaxSeconds } from "../shared/obs.js";
+import { getObsReplayMaxSeconds, obsWebSocketUrls } from "../shared/obs.js";
 import {
   getAutostartBatPath,
   getRepoRoot,
@@ -85,6 +85,12 @@ import {
 
 const execFileAsync = promisify(execFile);
 const OBS_IMAGE = "obs64.exe";
+const OBS_LAUNCH_ARGS = [
+  "--startreplaybuffer",
+  "--minimize-to-tray",
+  // Ignored on OBS 32+, still prevents the safe-mode prompt on older builds.
+  "--disable-shutdown-check",
+];
 
 const preloadPath = fileURLToPath(
   new URL("../preload/index.mjs", import.meta.url),
@@ -105,6 +111,19 @@ protocol.registerSchemesAsPrivileged([
 
 app.setName(APP_NAME);
 app.setAppUserModelId(APP_USER_MODEL_ID);
+{
+  const dir = join(app.getPath("appData"), APP_ID);
+  app.setPath("userData", dir);
+  app.setPath("sessionData", dir);
+  const legacy = join(app.getPath("appData"), APP_NAME);
+  if (legacy !== dir) {
+    try {
+      fs.rmSync(legacy, { recursive: true, force: true });
+    } catch {
+      // Previous runs used the display name as userData (Chromium cache).
+    }
+  }
+}
 
 let mainWindow: BrowserWindow | null = null;
 let cutterWindow: BrowserWindow | null = null;
@@ -125,6 +144,8 @@ let clipping = false;
 let cutting = false;
 let obsProcessRunning = false;
 let obsProcessPoll: NodeJS.Timeout | null = null;
+let obsConnectGen = 0;
+let obsConnecting = false;
 let pendingClipSeconds: number | null = parseClipSecondsArg(process.argv);
 let appReadyForClip = false;
 
@@ -227,7 +248,7 @@ async function isObsProcessRunning(): Promise<boolean> {
     const { stdout } = await execFileAsync(
       "tasklist",
       ["/FI", `IMAGENAME eq ${OBS_IMAGE}`, "/FO", "CSV", "/NH"],
-      { windowsHide: true },
+      { windowsHide: true, timeout: 5000 },
     );
     return stdout.toLowerCase().includes(OBS_IMAGE.toLowerCase());
   } catch {
@@ -242,47 +263,137 @@ async function refreshObsProcessRunning(): Promise<void> {
   sendObsStatus();
 }
 
-async function killObsProcess(): Promise<void> {
+async function waitUntilObsExits(timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await isObsProcessRunning())) return true;
+    await sleep(200);
+  }
+  return !(await isObsProcessRunning());
+}
+
+async function requestObsClose(): Promise<void> {
   try {
-    await execFileAsync("taskkill", ["/IM", OBS_IMAGE, "/T"], {
+    await execFileAsync("taskkill", ["/IM", OBS_IMAGE], {
       windowsHide: true,
+      timeout: 4000,
     });
   } catch {
-    // Process may already be gone or ignored WM_CLOSE.
+    // Process may already be gone, or OBS hid to tray instead of quitting.
   }
-  if (!(await isObsProcessRunning())) return;
+}
+
+async function stopObsReplayBufferBestEffort(): Promise<void> {
+  if (!obsConnected) return;
+  try {
+    await obs.call("StopReplayBuffer");
+  } catch {
+    // Buffer may already be off.
+  }
+}
+
+/**
+ * OBS with --minimize-to-tray treats the first WM_CLOSE as "hide".
+ * A second close (window no longer visible) actually quits and clears the
+ * unclean-shutdown sentinel. Force-kill only as a last resort.
+ */
+async function killObsProcess(): Promise<boolean> {
+  await requestObsClose();
+  if (await waitUntilObsExits(1500)) return true;
+  await requestObsClose();
+  if (await waitUntilObsExits(6000)) return true;
   try {
     await execFileAsync("taskkill", ["/IM", OBS_IMAGE, "/T", "/F"], {
       windowsHide: true,
+      timeout: 8000,
+    });
+  } catch {
+    // Process may already be gone.
+  }
+  return waitUntilObsExits(4000);
+}
+
+/** OBS shows the safe-mode prompt when this leftover exists after a crash/kill. */
+function clearObsShutdownSentinel(): void {
+  const appData = process.env.APPDATA;
+  if (!appData) return;
+  try {
+    fs.rmSync(join(appData, "obs-studio", ".sentinel"), {
+      recursive: true,
+      force: true,
     });
   } catch {
     // ignore
   }
 }
 
-function spawnDetached(command: string, args: string[], cwd: string): void {
-  const child = spawn(command, args, {
-    cwd,
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true,
+function spawnDetached(
+  command: string,
+  args: string[],
+  cwd: string,
+  windowsHide = false,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const child = spawn(command, args, {
+      cwd,
+      detached: true,
+      stdio: "ignore",
+      windowsHide,
+    });
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+    child.once("spawn", () => {
+      if (settled) return;
+      settled = true;
+      child.unref();
+      resolve();
+    });
   });
-  child.unref();
+}
+
+function requestObsReconnect(): void {
+  intentionalDisconnect = false;
+  reconnectAttempt = 0;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (!obsConnected) void connectObs();
 }
 
 function markObsLaunchRequested(): void {
   obsProcessRunning = true;
-  intentionalDisconnect = false;
-  reconnectAttempt = 0;
   sendObsStatus();
-  if (!obsConnected) scheduleReconnect();
+  requestObsReconnect();
 }
 
 async function startObsClipMode(): Promise<{ ok: boolean; error?: string }> {
+  if (await isObsProcessRunning()) {
+    obsProcessRunning = true;
+    sendObsStatus();
+    requestObsReconnect();
+    const connected = await waitForObsConnected(12_000);
+    if (connected) {
+      await ensureReplayBufferStarted();
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error:
+        obsError ??
+        "OBS läuft bereits, aber die WebSocket-Verbindung ist fehlgeschlagen. Prüfe URL und Passwort unter OBS Verbindung.",
+    };
+  }
+
   const exe = resolveObsExecutable();
   if (exe) {
     try {
-      spawnDetached(exe, ["--startreplaybuffer", "--minimize-to-tray"], dirname(exe));
+      clearObsShutdownSentinel();
+      await spawnDetached(exe, OBS_LAUNCH_ARGS, dirname(exe));
       markObsLaunchRequested();
       return { ok: true };
     } catch (err) {
@@ -295,7 +406,12 @@ async function startObsClipMode(): Promise<{ ok: boolean; error?: string }> {
     const bat = getAutostartBatPath();
     if (bat) {
       try {
-        spawnDetached("cmd.exe", ["/d", "/c", bat], join(getRepoRoot(), "scripts"));
+        await spawnDetached(
+          "cmd.exe",
+          ["/d", "/c", bat],
+          join(getRepoRoot(), "scripts"),
+          true,
+        );
         markObsLaunchRequested();
         return { ok: true };
       } catch (err) {
@@ -386,6 +502,8 @@ function sendClipsChanged(): void {
 
 async function disconnectObs(): Promise<void> {
   intentionalDisconnect = true;
+  obsConnectGen += 1;
+  obsConnecting = false;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -408,60 +526,122 @@ function scheduleReconnect(): void {
   }, delay);
 }
 
-async function connectObs(): Promise<void> {
-  intentionalDisconnect = false;
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-
-  try {
-    await obs.disconnect();
-  } catch {
-    // ignore
-  }
-
-  obs = new OBSWebSocket();
-  obs.on("ConnectionClosed", () => {
+function attachObsSocketListeners(socket: OBSWebSocket): void {
+  socket.on("ConnectionClosed", () => {
+    if (socket !== obs || obsConnecting) return;
+    const wasConnected = obsConnected;
     obsConnected = false;
-    obsError = "Verbindung zu OBS getrennt";
+    if (wasConnected) {
+      obsError = "Verbindung zu OBS getrennt";
+    }
     replayBufferActive = false;
     replayMaxSeconds = null;
     sendObsStatus();
     void refreshObsProcessRunning();
     if (!intentionalDisconnect) scheduleReconnect();
   });
-  obs.on("ReplayBufferStateChanged", (event) => {
+  socket.on("ReplayBufferStateChanged", (event) => {
+    if (socket !== obs) return;
     replayBufferActive = Boolean(event.outputActive);
     sendObsStatus();
   });
-  obs.on("CurrentProfileChanged", () => {
+  socket.on("CurrentProfileChanged", () => {
+    if (socket !== obs) return;
     void refreshReplayMaxSeconds().then((changed) => {
       if (changed) sendObsStatus();
     });
   });
-  obs.on("ConnectionError", (err) => {
+  socket.on("ConnectionError", (err) => {
+    if (socket !== obs || obsConnecting) return;
     obsConnected = false;
     obsError = err instanceof Error ? err.message : String(err);
     replayBufferActive = false;
     replayMaxSeconds = null;
     sendObsStatus();
   });
+}
 
+async function connectObsSocket(
+  socket: OBSWebSocket,
+  url: string,
+  password: string,
+  timeoutMs = 5000,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await obs.connect(config.OBS_URL, config.OBS_PASSWORD);
-    obsConnected = true;
-    obsProcessRunning = true;
-    obsError = undefined;
-    reconnectAttempt = 0;
-    await refreshReplayBuffer();
-    await refreshReplayMaxSeconds();
-    sendObsStatus();
-  } catch (err) {
+    await Promise.race([
+      socket.connect(url, password),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error("Zeitüberschreitung bei der OBS-Verbindung"));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function connectObs(): Promise<void> {
+  const gen = ++obsConnectGen;
+  intentionalDisconnect = false;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  obsConnecting = true;
+  try {
+    try {
+      await obs.disconnect();
+    } catch {
+      // ignore
+    }
+    if (gen !== obsConnectGen) return;
+
+    let lastError: unknown;
+    for (const url of obsWebSocketUrls(config.OBS_URL)) {
+      if (gen !== obsConnectGen) return;
+      const socket = new OBSWebSocket();
+      attachObsSocketListeners(socket);
+      obs = socket;
+      try {
+        await connectObsSocket(socket, url, config.OBS_PASSWORD);
+        if (gen !== obsConnectGen || socket !== obs) {
+          try {
+            await socket.disconnect();
+          } catch {
+            // superseded
+          }
+          return;
+        }
+        obsConnected = true;
+        obsProcessRunning = true;
+        obsError = undefined;
+        reconnectAttempt = 0;
+        await refreshReplayBuffer();
+        await refreshReplayMaxSeconds();
+        sendObsStatus();
+        return;
+      } catch (err) {
+        lastError = err;
+        try {
+          await socket.disconnect();
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    if (gen !== obsConnectGen) return;
     obsConnected = false;
-    obsError = err instanceof Error ? err.message : String(err);
+    obsError = lastError instanceof Error ? lastError.message : String(lastError);
     sendObsStatus();
+    void refreshObsProcessRunning();
+    obsConnecting = false;
     scheduleReconnect();
+  } finally {
+    if (gen === obsConnectGen) obsConnecting = false;
   }
 }
 
@@ -884,7 +1064,10 @@ function registerIpc(): void {
   ipcMain.handle(
     IpcChannels.stopObs,
     async (): Promise<{ ok: boolean; error?: string }> => {
+      await stopObsReplayBufferBestEffort();
       intentionalDisconnect = true;
+      obsConnectGen += 1;
+      obsConnecting = false;
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
@@ -897,14 +1080,23 @@ function registerIpc(): void {
       obsConnected = false;
       replayBufferActive = false;
       replayMaxSeconds = null;
+      sendObsStatus();
       try {
-        await killObsProcess();
+        const stopped = await killObsProcess();
+        obsProcessRunning = !stopped;
+        sendObsStatus();
+        if (!stopped) {
+          return {
+            ok: false,
+            error: "OBS konnte nicht beendet werden.",
+          };
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        obsProcessRunning = await isObsProcessRunning();
         sendObsStatus();
         return { ok: false, error: message };
       }
-      obsProcessRunning = false;
       sendObsStatus();
       return { ok: true };
     },
@@ -1060,11 +1252,6 @@ app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) return;
 
   appDataDir = app.getPath("userData");
-  // Prefer %APPDATA%\EasyClip so packaged and unpackaged runs share config
-  if (process.env.APPDATA) {
-    const shared = join(process.env.APPDATA, APP_ID);
-    appDataDir = shared;
-  }
   setAppDataDir(appDataDir);
   setTrayAppDataDir(appDataDir);
 

@@ -188,12 +188,6 @@ function ClipCard({
                 Fehlt
               </Badge>
             ) : null}
-            {!clip.namedByUser && !clip.missing ? (
-              <Badge variant="outline">
-                <FilePenIcon data-icon="inline-start" />
-                Unbenannt
-              </Badge>
-            ) : null}
           </div>
         </div>
       </button>
@@ -381,10 +375,6 @@ export function RecentClips({
           </ToggleGroup>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Klicke auf einen Titel, um ihn zu benennen. Das Infobereich-Symbol zählt
-        noch unbenannte Clips.
-      </p>
       {visible.length === 0 ? (
         <Empty className="border border-dashed">
           <EmptyHeader>

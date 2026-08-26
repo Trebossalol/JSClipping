@@ -18,6 +18,7 @@ interface CommandBarProps {
   lastSeconds: number | null;
   clipPresets: ClipPreset[];
   onCreate: (seconds: number) => void;
+  onGoToObsSettings: () => void;
 }
 
 export function CommandBar({
@@ -26,6 +27,7 @@ export function CommandBar({
   lastSeconds,
   clipPresets,
   onCreate,
+  onGoToObsSettings,
 }: CommandBarProps) {
   const presets = clipPresetsFromSeconds(
     clipPresets.map((preset) => preset.seconds),
@@ -49,7 +51,7 @@ export function CommandBar({
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-4" />
-      <ObsStatusPill status={obsStatus} />
+      <ObsStatusPill status={obsStatus} onGoToSettings={onGoToObsSettings} />
       {obsStatus && obsStatus.connected === true ? (
         <ButtonGroup className="flex-wrap">
           {presets.map(({ seconds, label, hint }) => {

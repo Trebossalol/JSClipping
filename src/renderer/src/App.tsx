@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { DEFAULT_USER_CONFIG } from "@shared/app.config";
 import type { AppConfigDto, ClipRecord, ObsStatus } from "@shared/ipc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,7 +21,6 @@ import { formatHotkey } from "@shared/hotkeys";
 import { AppSidebar, type AppView } from "./components/AppSidebar";
 import { ClipActions } from "./components/ClipActions";
 import { CommandBar } from "./components/CommandBar";
-import { OnboardingPage } from "./components/onboarding/OnboardingPage";
 import {
   RecentClips,
   type ClipFilter,
@@ -65,12 +63,6 @@ export function App() {
       setObsStatus(status);
       setClips(list);
       setSelectedId(list[0]?.id ?? null);
-      if (
-        !cfg.ONBOARDING_HIDDEN &&
-        cfg.OBS_PASSWORD === DEFAULT_USER_CONFIG.OBS_PASSWORD
-      ) {
-        setView("onboarding");
-      }
     }
 
     loader.begin();
@@ -120,12 +112,6 @@ export function App() {
     setSelectedId(newest.id);
     selectNewestRef.current = false;
   }, [clips]);
-
-  useEffect(() => {
-    if (config?.ONBOARDING_HIDDEN && view === "onboarding") {
-      setView("library");
-    }
-  }, [config?.ONBOARDING_HIDDEN, view]);
 
   async function saveConfig(next: AppConfigDto): Promise<AppConfigDto> {
     const saved = await loader.wrap(() => window.api.saveConfig(next));
@@ -273,7 +259,6 @@ export function App() {
             setFilter("untitled");
           }}
           onOpenCutter={() => void openCutter()}
-          showOnboarding={!config.ONBOARDING_HIDDEN}
         />
 
         <SidebarInset className="min-h-0 overflow-hidden">
@@ -283,6 +268,7 @@ export function App() {
             lastSeconds={lastSeconds}
             clipPresets={config.CLIP_PRESETS}
             onCreate={(seconds) => void createClip(seconds)}
+            onGoToObsSettings={() => setView("obs")}
           />
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
             {view === "library" ? (
@@ -305,19 +291,6 @@ export function App() {
                   onCut={(id) => void openCutter(id)}
                 />
               </div>
-            ) : view === "onboarding" ? (
-              <OnboardingPage
-                config={config}
-                obsStatus={obsStatus}
-                busy={clippingBusy}
-                onCreateClip={(seconds) => void createClip(seconds)}
-                onGoToLibrary={() => setView("library")}
-                onGoToSettings={setView}
-                onHide={async () => {
-                  await saveConfig({ ...config, ONBOARDING_HIDDEN: true });
-                  setView("library");
-                }}
-              />
             ) : (
               <SettingsPanel
                 section={view}

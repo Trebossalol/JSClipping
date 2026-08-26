@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +18,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
 import type { StorageInfo } from "@shared/ipc";
 import { formatBytes } from "../format";
@@ -40,11 +34,6 @@ const POLL_MS = 10_000;
 
 interface StoragePanelProps {
   className?: string;
-}
-
-function ratioToSliderValue(ratio: number): number {
-  if (!Number.isFinite(ratio) || ratio <= 0) return 0;
-  return Math.min(100, Math.round(ratio * 1000) / 10);
 }
 
 function formatPercent(ratio: number): string {
@@ -127,9 +116,6 @@ export function StoragePanel({ className }: StoragePanelProps) {
     info && info.totalBytes > 0 ? Math.max(0, usedRatio - clipsRatio) : 0;
   const freeRatio = info && info.totalBytes > 0 ? 1 - usedRatio : 0;
 
-  const clipsPct = ratioToSliderValue(clipsRatio);
-  const usedPct = ratioToSliderValue(usedRatio);
-
   return (
     <Card className={cn(className)}>
       <CardHeader>
@@ -170,7 +156,7 @@ export function StoragePanel({ className }: StoragePanelProps) {
           {loading && !info ? (
             <Field>
               <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-2 w-full" />
+              <Skeleton className="h-2.5 w-full" />
               <Skeleton className="h-4 w-48" />
             </Field>
           ) : info ? (
@@ -183,28 +169,20 @@ export function StoragePanel({ className }: StoragePanelProps) {
                 aria-valuemax={100}
                 aria-valuenow={Math.round(usedRatio * 100)}
                 aria-valuetext={`${formatBytes(usedBytes)} belegt, davon ${formatBytes(clipsBytes)} Clips, ${formatBytes(info.freeBytes)} frei`}
-                className="w-full"
-                style={
-                  {
-                    "--clips-pct": `${clipsPct}%`,
-                  } as CSSProperties
-                }
+                className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
               >
-                <Slider
-                  aria-hidden
-                  tabIndex={-1}
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  minStepsBetweenThumbs={0}
-                  value={[clipsPct, usedPct]}
-                  className={cn(
-                    "pointer-events-none",
-                    "**:data-[slot=slider-track]:h-2",
-                    "**:data-[slot=slider-track]:bg-[linear-gradient(to_right,var(--primary)_var(--clips-pct),var(--muted)_var(--clips-pct))]",
-                    "**:data-[slot=slider-range]:bg-primary/40",
-                  )}
-                />
+                {clipsRatio > 0 ? (
+                  <div
+                    className="h-full min-w-0.5 shrink-0 bg-primary"
+                    style={{ width: `${clipsRatio * 100}%` }}
+                  />
+                ) : null}
+                {otherRatio > 0 ? (
+                  <div
+                    className="h-full min-w-0 bg-primary/40"
+                    style={{ width: `${otherRatio * 100}%` }}
+                  />
+                ) : null}
               </div>
             </Field>
           ) : null}

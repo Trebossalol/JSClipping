@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { APP_NAME } from "@shared/app.config";
-import { PowerIcon } from "lucide-react";
+import { InfoIcon, PowerIcon } from "lucide-react";
 
 interface AutostartSectionProps {
   autostart: boolean;
@@ -37,9 +38,16 @@ export function AutostartSection({
           in den Infobereich.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
+        <Alert variant="info">
+          <InfoIcon />
+          <AlertTitle>Bald verfügbar</AlertTitle>
+          <AlertDescription>
+            Autostart wird in einem zukünftigen Update verfügbar sein.
+          </AlertDescription>
+        </Alert>
         <FieldGroup>
-          <Field orientation="horizontal">
+          <Field orientation="horizontal" data-disabled="true">
             <FieldContent>
               <FieldLabel htmlFor="autostart">
                 Automatischer Start
@@ -52,6 +60,7 @@ export function AutostartSection({
               id="autostart"
               checked={autostart}
               onCheckedChange={onAutostartChange}
+              disabled
             />
           </Field>
         </FieldGroup>
