@@ -17,6 +17,7 @@ export const MIN_CUT_RANGE_SECONDS = 0.2;
 export const DEFAULT_USER_CONFIG = {
   OBS_URL: "ws://localhost:4455",
   OBS_PASSWORD: "CHANGE_ME",
+  OBS_SCENE: "",
   CLIP_OUTPUT_DIR: "C:\\Clips",
   AUTOSTART: false,
   CLIP_PRESETS: DEFAULT_CLIP_PRESETS.map((seconds) => ({

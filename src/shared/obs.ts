@@ -49,3 +49,36 @@ export async function getObsReplayMaxSeconds(
     parseObsProfileSeconds(timeRes.defaultParameterValue)
   );
 }
+
+export function configuredObsScene(scene: string | undefined | null): string | null {
+  const trimmed = scene?.trim();
+  return trimmed ? trimmed : null;
+}
+
+export async function getObsProgramScene(
+  obs: OBSWebSocket,
+): Promise<string | null> {
+  const res = await obs.call("GetCurrentProgramScene");
+  return res.currentProgramSceneName ?? null;
+}
+
+export async function listObsScenes(obs: OBSWebSocket): Promise<{
+  names: string[];
+  current: string | null;
+}> {
+  const res = await obs.call("GetSceneList");
+  const names = res.scenes
+    .map((scene) => scene.sceneName)
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+  return {
+    names,
+    current: res.currentProgramSceneName ?? null,
+  };
+}
+
+export async function setObsProgramScene(
+  obs: OBSWebSocket,
+  sceneName: string,
+): Promise<void> {
+  await obs.call("SetCurrentProgramScene", { sceneName });
+}

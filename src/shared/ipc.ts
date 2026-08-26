@@ -53,6 +53,8 @@ export function normalizeClipPresets(value: unknown): ClipPreset[] {
 export interface AppConfigDto {
   OBS_URL: string;
   OBS_PASSWORD: string;
+  /** Empty = do not force a scene; OBS keeps its current program scene. */
+  OBS_SCENE: string;
   CLIP_OUTPUT_DIR: string;
   AUTOSTART: boolean;
   CLIP_PRESETS: ClipPreset[];
@@ -68,6 +70,8 @@ export interface ObsStatus {
   replayBufferActive: boolean | null;
   /** OBS "Maximum Replay Time" in seconds; `null` when disconnected or unknown. */
   replayMaxSeconds: number | null;
+  /** Current OBS program scene; `null` when disconnected or unknown. */
+  currentScene: string | null;
 }
 
 export interface ClipRecord {
@@ -104,6 +108,7 @@ export const IpcChannels = {
   pickOutputDir: "config:pick-output-dir",
   getObsStatus: "obs:get-status",
   obsStatusChanged: "obs:status-changed",
+  getObsScenes: "obs:get-scenes",
   createClip: "clip:create",
   listClips: "clips:list",
   clipsChanged: "clips:changed",
@@ -141,6 +146,10 @@ export type StorageInfoResult =
   | { ok: true; info: StorageInfo }
   | { ok: false; error: string };
 
+export type ObsScenesResult =
+  | { ok: true; scenes: string[]; currentScene: string | null }
+  | { ok: false; error: string };
+
 export interface HotkeyClipPayload {
   seconds: number;
   result: CreateClipResult;
@@ -153,6 +162,7 @@ export interface ElectronApi {
   pickOutputDir(): Promise<string | null>;
   getObsStatus(): Promise<ObsStatus>;
   onObsStatus(callback: (status: ObsStatus) => void): () => void;
+  getObsScenes(): Promise<ObsScenesResult>;
   createClip(seconds: number): Promise<CreateClipResult>;
   listClips(): Promise<ClipRecord[]>;
   onClipsChanged(callback: (clips: ClipRecord[]) => void): () => void;

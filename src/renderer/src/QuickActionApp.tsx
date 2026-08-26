@@ -89,9 +89,10 @@ export function QuickActionApp() {
   }, [focusTitle, reload]);
 
   const presets = config?.CLIP_PRESETS ?? [];
-  const { connected, replayOff, canClip } = getClipAvailability(
+  const { connected, replayOff, sceneMismatch, canClip } = getClipAvailability(
     obsStatus,
     false,
+    config?.OBS_SCENE,
   );
   const replayMax = obsStatus?.replayMaxSeconds ?? null;
 
@@ -199,6 +200,15 @@ export function QuickActionApp() {
                 <AlertTitle>Wiederholungspuffer ist aus</AlertTitle>
                 <AlertDescription>
                   Starte ihn in OBS, dann kannst du clippen.
+                </AlertDescription>
+              </Alert>
+            ) : sceneMismatch ? (
+              <Alert>
+                <TriangleAlertIcon />
+                <AlertTitle>Falsche OBS-Szene</AlertTitle>
+                <AlertDescription>
+                  Clips nutzen „{config?.OBS_SCENE?.trim()}“. Starte OBS über Easy
+                  Clip, damit der Puffer diese Szene aufzeichnet.
                 </AlertDescription>
               </Alert>
             ) : !connected ? (

@@ -8,6 +8,7 @@ import {
   type CutRange,
   type ElectronApi,
   type HotkeyClipPayload,
+  type ObsScenesResult,
   type ObsStatus,
   type RenameClipResult,
   type StorageInfoResult,
@@ -19,6 +20,8 @@ const api: ElectronApi = {
     ipcRenderer.invoke(IpcChannels.saveConfig, config),
   pickOutputDir: () => ipcRenderer.invoke(IpcChannels.pickOutputDir),
   getObsStatus: () => ipcRenderer.invoke(IpcChannels.getObsStatus),
+  getObsScenes: (): Promise<ObsScenesResult> =>
+    ipcRenderer.invoke(IpcChannels.getObsScenes),
   onObsStatus: (callback: (status: ObsStatus) => void) => {
     const listener = (_event: IpcRendererEvent, status: ObsStatus): void => {
       callback(status);

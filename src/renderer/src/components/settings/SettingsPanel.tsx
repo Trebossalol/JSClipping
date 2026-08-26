@@ -34,6 +34,7 @@ export function SettingsPanel({
   const [showPassword, setShowPassword] = useState(false);
   const [obsUrl, setObsUrl] = useState(config.OBS_URL);
   const [obsPassword, setObsPassword] = useState(config.OBS_PASSWORD);
+  const [obsScene, setObsScene] = useState(config.OBS_SCENE);
   const [outputDir, setOutputDir] = useState(config.CLIP_OUTPUT_DIR);
   const [autostart, setAutostart] = useState(config.AUTOSTART);
   const [quickActionHotkey, setQuickActionHotkey] = useState(
@@ -55,6 +56,7 @@ export function SettingsPanel({
   useEffect(() => {
     setObsUrl(config.OBS_URL);
     setObsPassword(config.OBS_PASSWORD);
+    setObsScene(config.OBS_SCENE);
     setOutputDir(config.CLIP_OUTPUT_DIR);
     setAutostart(config.AUTOSTART);
     setQuickActionHotkey(config.QUICK_ACTION_HOTKEY);
@@ -67,6 +69,7 @@ export function SettingsPanel({
   }, [
     config.OBS_URL,
     config.OBS_PASSWORD,
+    config.OBS_SCENE,
     config.CLIP_OUTPUT_DIR,
     config.AUTOSTART,
     config.QUICK_ACTION_HOTKEY,
@@ -143,6 +146,7 @@ export function SettingsPanel({
     if (section === "obs") {
       next.OBS_URL = obsUrl.trim();
       next.OBS_PASSWORD = obsPassword;
+      next.OBS_SCENE = obsScene.trim();
     } else if (section === "storage") {
       next.CLIP_OUTPUT_DIR = outputDir.trim();
     } else if (section === "presets") {
@@ -179,6 +183,7 @@ export function SettingsPanel({
       const saved = await onSave(next);
       setObsUrl(saved.OBS_URL);
       setObsPassword(saved.OBS_PASSWORD);
+      setObsScene(saved.OBS_SCENE);
       setOutputDir(saved.CLIP_OUTPUT_DIR);
       setAutostart(saved.AUTOSTART);
       setQuickActionHotkey(saved.QUICK_ACTION_HOTKEY);
@@ -201,9 +206,11 @@ export function SettingsPanel({
         <ObsSection
           url={obsUrl}
           password={obsPassword}
+          scene={obsScene}
           showPassword={showPassword}
           onUrlChange={setObsUrl}
           onPasswordChange={setObsPassword}
+          onSceneChange={setObsScene}
           onTogglePassword={() => setShowPassword((s) => !s)}
         />
       ) : null}

@@ -17,6 +17,7 @@ interface CommandBarProps {
   busy: boolean;
   lastSeconds: number | null;
   clipPresets: ClipPreset[];
+  clipScene?: string | null;
   onCreate: (seconds: number) => void;
   onGoToObsSettings: () => void;
 }
@@ -26,6 +27,7 @@ export function CommandBar({
   busy,
   lastSeconds,
   clipPresets,
+  clipScene,
   onCreate,
   onGoToObsSettings,
 }: CommandBarProps) {
@@ -35,13 +37,16 @@ export function CommandBar({
   const hotkeys = new Map(
     clipPresets.map((preset) => [preset.seconds, preset.hotkey]),
   );
-  const { connected, replayOff, canClip } = getClipAvailability(
+  const { connected, replayOff, sceneMismatch, canClip } = getClipAvailability(
     obsStatus,
     busy,
+    clipScene,
   );
   const disabledReason = replayOff
     ? "Wiederholungspuffer ist aus"
-    : busy
+    : sceneMismatch
+      ? "OBS ist auf einer anderen Szene"
+      : busy
       ? "Clip wird gespeichert…"
       : connected
         ? undefined

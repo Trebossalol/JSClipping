@@ -9,6 +9,7 @@ import { ensureDir, getAppDataDir } from "./paths.js";
 export const ConfigSchema = z.object({
   OBS_URL: z.url(),
   OBS_PASSWORD: z.string().min(1),
+  OBS_SCENE: z.string().default(""),
   CLIP_OUTPUT_DIR: z.string().min(1),
   AUTOSTART: z.boolean().default(false),
   QUICK_ACTION_HOTKEY: z.preprocess(

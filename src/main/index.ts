@@ -49,13 +49,21 @@ import {
   type CutClipResult,
   type CutRange,
   type HotkeyClipPayload,
+  type ObsScenesResult,
   type ObsStatus,
   type RenameClipResult,
   type StorageInfoResult,
 } from "../shared/ipc.js";
 import { getStorageInfo } from "../shared/storage.js";
 import { createRunLog } from "../shared/log.js";
-import { getObsReplayMaxSeconds, obsWebSocketUrls } from "../shared/obs.js";
+import {
+  configuredObsScene,
+  getObsProgramScene,
+  getObsReplayMaxSeconds,
+  listObsScenes,
+  obsWebSocketUrls,
+  setObsProgramScene,
+} from "../shared/obs.js";
 import {
   getAutostartBatPath,
   getRepoRoot,
@@ -136,6 +144,7 @@ let obsConnected = false;
 let obsError: string | undefined;
 let replayBufferActive: boolean | null = null;
 let replayMaxSeconds: number | null = null;
+let currentProgramScene: string | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempt = 0;
 let intentionalDisconnect = false;
@@ -240,6 +249,7 @@ function currentObsStatus(): ObsStatus {
     error: obsError,
     replayBufferActive: obsConnected ? replayBufferActive : false,
     replayMaxSeconds: obsConnected ? replayMaxSeconds : null,
+    currentScene: obsConnected ? currentProgramScene : null,
   };
 }
 
@@ -327,6 +337,70 @@ function clearObsShutdownSentinel(): void {
   }
 }
 
+function obsLaunchArgs(): string[] {
+  const args = [...OBS_LAUNCH_ARGS];
+  const scene = configuredObsScene(config.OBS_SCENE);
+  if (scene) args.push("--scene", scene);
+  return args;
+}
+
+async function refreshProgramScene(): Promise<void> {
+  if (!obsConnected) {
+    currentProgramScene = null;
+    return;
+  }
+  try {
+    currentProgramScene = await getObsProgramScene(obs);
+  } catch {
+    currentProgramScene = null;
+  }
+}
+
+async function applyClipScene(): Promise<
+  | { ok: true; switched: boolean }
+  | { ok: false; switched: false; error: string }
+> {
+  const scene = configuredObsScene(config.OBS_SCENE);
+  if (!scene || !obsConnected) return { ok: true, switched: false };
+  try {
+    const current = await getObsProgramScene(obs);
+    if (current === scene) {
+      currentProgramScene = current;
+      return { ok: true, switched: false };
+    }
+    await setObsProgramScene(obs, scene);
+    currentProgramScene = scene;
+    sendObsStatus();
+    return { ok: true, switched: true };
+  } catch {
+    return {
+      ok: false,
+      switched: false,
+      error: `Die OBS-Szene „${scene}“ wurde nicht gefunden. Wähle sie unter OBS Verbindung.`,
+    };
+  }
+}
+
+async function restartReplayBufferBestEffort(): Promise<void> {
+  if (!obsConnected) return;
+  try {
+    await obs.call("StopReplayBuffer");
+    replayBufferActive = false;
+  } catch {
+    // Buffer may already be off.
+  }
+  await ensureReplayBufferStarted();
+}
+
+async function prepareObsClipScene(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await applyClipScene();
+  if (!result.ok) return result;
+  if (result.switched && replayBufferActive === true) {
+    await restartReplayBufferBestEffort();
+  }
+  return { ok: true };
+}
+
 function spawnDetached(
   command: string,
   args: string[],
@@ -378,6 +452,8 @@ async function startObsClipMode(): Promise<{ ok: boolean; error?: string }> {
     requestObsReconnect();
     const connected = await waitForObsConnected(12_000);
     if (connected) {
+      const scene = await prepareObsClipScene();
+      if (!scene.ok) return scene;
       await ensureReplayBufferStarted();
       return { ok: true };
     }
@@ -393,8 +469,14 @@ async function startObsClipMode(): Promise<{ ok: boolean; error?: string }> {
   if (exe) {
     try {
       clearObsShutdownSentinel();
-      await spawnDetached(exe, OBS_LAUNCH_ARGS, dirname(exe));
+      await spawnDetached(exe, obsLaunchArgs(), dirname(exe));
       markObsLaunchRequested();
+      const connected = await waitForObsConnected(12_000);
+      if (connected) {
+        const scene = await prepareObsClipScene();
+        if (!scene.ok) return scene;
+        await ensureReplayBufferStarted();
+      }
       return { ok: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -536,6 +618,7 @@ function attachObsSocketListeners(socket: OBSWebSocket): void {
     }
     replayBufferActive = false;
     replayMaxSeconds = null;
+    currentProgramScene = null;
     sendObsStatus();
     void refreshObsProcessRunning();
     if (!intentionalDisconnect) scheduleReconnect();
@@ -543,6 +626,11 @@ function attachObsSocketListeners(socket: OBSWebSocket): void {
   socket.on("ReplayBufferStateChanged", (event) => {
     if (socket !== obs) return;
     replayBufferActive = Boolean(event.outputActive);
+    sendObsStatus();
+  });
+  socket.on("CurrentProgramSceneChanged", (event) => {
+    if (socket !== obs) return;
+    currentProgramScene = event.sceneName ?? null;
     sendObsStatus();
   });
   socket.on("CurrentProfileChanged", () => {
@@ -557,6 +645,7 @@ function attachObsSocketListeners(socket: OBSWebSocket): void {
     obsError = err instanceof Error ? err.message : String(err);
     replayBufferActive = false;
     replayMaxSeconds = null;
+    currentProgramScene = null;
     sendObsStatus();
   });
 }
@@ -621,6 +710,7 @@ async function connectObs(): Promise<void> {
         reconnectAttempt = 0;
         await refreshReplayBuffer();
         await refreshReplayMaxSeconds();
+        await refreshProgramScene();
         sendObsStatus();
         return;
       } catch (err) {
@@ -893,6 +983,9 @@ async function runCreateClip(
     return { ok: false, error: "OBS-WebSocket ist nicht verbunden." };
   }
 
+  const scene = await applyClipScene();
+  if (!scene.ok) return scene;
+
   await refreshReplayMaxSeconds();
   const tooLong = validateClipSeconds(length, replayMaxSeconds);
   if (tooLong) return { ok: false, error: tooLong };
@@ -1009,6 +1102,7 @@ function registerIpc(): void {
       const prevUrl = config.OBS_URL;
       const prevPass = config.OBS_PASSWORD;
       const prevAutostart = config.AUTOSTART;
+      const prevScene = config.OBS_SCENE;
       setAppAutostartEnabled(next.AUTOSTART, appDataDir);
       config = saveConfig(next, appDataDir);
       syncPresetHotkeys(true);
@@ -1017,8 +1111,14 @@ function registerIpc(): void {
         if (!(await isObsProcessRunning())) {
           await startObsClipMode();
         } else {
+          await prepareObsClipScene();
           await ensureReplayBufferStarted();
         }
+      } else if (
+        obsConnected &&
+        configuredObsScene(config.OBS_SCENE) !== configuredObsScene(prevScene)
+      ) {
+        await prepareObsClipScene();
       }
 
       if (config.CLIP_OUTPUT_DIR !== prevOutput) {
@@ -1054,6 +1154,24 @@ function registerIpc(): void {
 
   ipcMain.handle(IpcChannels.getObsStatus, (): ObsStatus => currentObsStatus());
 
+  ipcMain.handle(IpcChannels.getObsScenes, async (): Promise<ObsScenesResult> => {
+    if (!obsConnected) {
+      return { ok: true, scenes: [], currentScene: null };
+    }
+    try {
+      const listed = await listObsScenes(obs);
+      currentProgramScene = listed.current;
+      return {
+        ok: true,
+        scenes: listed.names,
+        currentScene: listed.current,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: message };
+    }
+  });
+
   ipcMain.handle(
     IpcChannels.startObs,
     async (): Promise<{ ok: boolean; error?: string }> => {
@@ -1080,6 +1198,7 @@ function registerIpc(): void {
       obsConnected = false;
       replayBufferActive = false;
       replayMaxSeconds = null;
+      currentProgramScene = null;
       sendObsStatus();
       try {
         const stopped = await killObsProcess();

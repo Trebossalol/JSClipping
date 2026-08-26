@@ -267,6 +267,7 @@ export function App() {
             busy={clippingBusy}
             lastSeconds={lastSeconds}
             clipPresets={config.CLIP_PRESETS}
+            clipScene={config.OBS_SCENE}
             onCreate={(seconds) => void createClip(seconds)}
             onGoToObsSettings={() => setView("obs")}
           />
@@ -276,6 +277,7 @@ export function App() {
                 <ClipActions
                   busy={clippingBusy}
                   obsStatus={obsStatus}
+                  clipScene={config.OBS_SCENE}
                   message={clipMessage}
                 />
                 <RecentClips
