@@ -11,15 +11,16 @@ if (!root) {
   throw new Error("Root element #root not found");
 }
 
-const overlay = isQuickActionRoute();
+const isQuickAction = isQuickActionRoute();
+const isCutter = isCutterRoute();
 
 createRoot(root).render(
   <StrictMode>
-    {overlay ? (
+    {isQuickAction ? (
       <QuickActionApp />
     ) : (
       <TopLoadingBar>
-        {isCutterRoute() ? <CutterApp /> : <App />}
+        {isCutter ? <CutterApp /> : <App />}
       </TopLoadingBar>
     )}
   </StrictMode>,

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card";
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
@@ -23,7 +22,6 @@ import type { StorageInfo } from "@shared/ipc";
 import { formatBytes } from "../format";
 import {
   AlertCircleIcon,
-  FolderIcon,
   HardDriveIcon,
   RefreshCwIcon,
 } from "lucide-react";
