@@ -6,6 +6,7 @@ import type { AppConfigDto, ClipPreset } from "@shared/ipc";
 import { normalizeHotkey } from "@shared/hotkeys";
 import { SaveIcon } from "lucide-react";
 import type { SettingsSection } from "../AppSidebar";
+import { AboutSection } from "./AboutSection";
 import { AutostartSection } from "./AutostartSection";
 import { ObsSection } from "./ObsSection";
 import { PresetsSection } from "./PresetsSection";
@@ -175,8 +176,10 @@ export function SettingsPanel({
         return;
       }
       next.QUICK_ACTION_HOTKEY = menuHotkey;
-    } else {
+    } else if (section === "autostart") {
       next.AUTOSTART = autostart;
+    } else {
+      return;
     }
     setSaving(true);
     try {
@@ -195,6 +198,14 @@ export function SettingsPanel({
     } finally {
       setSaving(false);
     }
+  }
+
+  if (section === "about") {
+    return (
+      <div className="mx-auto flex w-full max-w-200 flex-col gap-4">
+        <AboutSection />
+      </div>
+    );
   }
 
   return (
@@ -245,12 +256,14 @@ export function SettingsPanel({
         />
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={saving}>
-          <SaveIcon data-icon="inline-start" />
-          Einstellungen speichern
-        </Button>
-      </div>
+      {section !== "about" ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={saving}>
+            <SaveIcon data-icon="inline-start" />
+            Einstellungen speichern
+          </Button>
+        </div>
+      ) : null}
     </form>
   );
 }

@@ -1,260 +1,201 @@
 # Easy Clip
 
-**Hit a Logitech Action Ring segment. Walk away with a clip.**
+Save the last few seconds of your game (or whatever OBS is capturing) as a clip — from a hotkey, a small on-screen **Quick Menu**, or a button in the app.
 
-Easy Clip talks to OBS over WebSocket, dumps the Replay Buffer, then trims the last *N* seconds with FFmpeg — stream-copy, no re-encode, usually done in under a second.
+Easy Clip talks to [OBS Studio](https://obsproject.com/), saves the Replay Buffer, then trims it with FFmpeg. The cut is a stream copy (no re-encode), so it is usually done in under a second.
 
-The **Electron app** sits in the Windows tray, shows OBS connection status, lets you clip from the UI, browse a library with thumbnails, rename/delete files, and cut clips down further without leaving the app.
-
-```
-┌─────────────┐     SaveReplayBuffer      ┌─────┐
-│ Action Ring │ ─────────────────────────▶│ OBS │
-│  EasyClip   │                           └─────┘
-│  --clip 30  │                                │
-└─────────────┘                                ▼
-       │                              Replay 2026-08-22.mp4
-       │                                       │
-       │              ffmpeg -c copy (last N s)│
-       ▼                                       ▼
-  EasyClip.exe --clip 30        CLIP_OUTPUT_DIR\YYYY\MM\…_30s.mp4
-       │
-       ▼
-  Library (folder watcher)  →  rename / cut / delete
-```
+The app lives in the Windows tray. The interface is German; this guide is English.
 
 ---
 
-## Features
+## What you need
 
-- **Instant replay clips** — last 30s / 1m / 5m / 10m by default, or any length you configure (minimum 5 seconds, up to 6 presets)
-- **Logitech Action Ring** — one segment per length; if Easy Clip is already in the tray, that instance clips
-- **Library** — thumbnails, play, rename (renames the file), reveal in Explorer, delete, filter untitled clips
-- **Clip cutter** — pick keep-ranges on a timeline, split at the playhead, save a new file (still stream-copy)
-- **OBS status** — connected / disconnected, replay buffer on/off, max buffer length, auto-reconnect
-- **Autostart** — Windows logon launches Easy Clip, then OBS with Replay Buffer on and minimized to tray
-- **Storage** — output folder plus disk usage of clips vs. free space
-- **Single instance** — a second `EasyClip.exe --clip 30` is handed to the running process
+- Windows 10 or 11
+- [OBS Studio](https://obsproject.com/) 28 or newer
+- The Easy Clip installer (FFmpeg is included — you do not install it separately)
 
-Clips land in `CLIP_OUTPUT_DIR\YYYY\MM\` as `Replay YYYY-MM-DD HH-MM-SS_<seconds>s.mp4`. Each `--clip` run also writes a log (`logs/` in the repo from source; `%APPDATA%\EasyClip\logs` when packaged). After a successful trim, Easy Clip tries to delete the full OBS replay dump so you only keep the cut.
-
-The UI is German; this README is English.
+A Logitech mouse is **optional**. You can clip from the app or from a keyboard shortcut. If you have a Logitech device, you can bind a mouse button to Easy Clip’s Quick Menu in Logi Options+ (see [Logitech mouse](#logitech-mouse-optional) below). The old **Actions Ring** setup is no longer needed.
 
 ---
 
-## Windows installer (recommended)
+## Install Easy Clip
 
-Build a real EXE. After install, the only external requirement is **OBS Studio**.
+1. Open the [GitHub Releases](https://github.com/Trebossalol/easy-clip/releases) page.
+2. Download **`EasyClip-Setup-….exe`** (the installer). There is also a portable **`EasyClip-Portable-….exe`** if you prefer not to install.
+3. Run the installer. The default location is `C:\Program Files\EasyClip\`.
+4. Start **Easy Clip** from the Start menu or the desktop shortcut.
 
-```powershell
-npm install
-npm run dist
-```
+Closing the window **does not quit** the app — it stays in the Windows tray (bottom-right, near the clock). Click the tray icon to open the window again. To fully quit, right-click the tray icon and choose **Beenden**.
 
-Artifacts land in `dist/`:
-
-| File | What it is |
-|---|---|
-| `EasyClip-Setup-1.0.0.exe` | NSIS installer (default: `C:\Program Files\EasyClip\EasyClip.exe`) |
-| `EasyClip-Portable-1.0.0.exe` | Portable EXE (no install) |
-
-**Action Ring (packaged):** Open file = `EasyClip.exe`, argument = `--clip 30` (or `60` / `300` / `600`, or any other length in seconds). If the app is already in the tray, that instance clips; otherwise it starts, clips, and stays in the tray.
-
-FFmpeg and ffprobe are bundled next to the app (`resources/ffmpeg/`). OBS stays a separate install.
-
-**Autostart (packaged):** enabling it in Settings registers Windows logon to launch `EasyClip.exe --started-at-login`. The app then starts OBS with `--startreplaybuffer --minimize-to-tray` if OBS is not already running.
+The tray icon shows a red badge with the number of clips that still need a title.
 
 ---
 
-## Requirements
+## First-time setup
 
-- Windows
-- [OBS Studio](https://obsproject.com/) 28+ (built-in WebSocket v5)
-- **Packaged app:** nothing else (FFmpeg is bundled)
-- **From source:** [Node.js](https://nodejs.org/) 18+ (LTS is fine). `npm install` pulls in FFmpeg binaries via `ffmpeg-static` / `ffprobe-static` — no PATH install needed
-- A Logitech mouse/keyboard with an **Action Ring** (MX Master, MX Keys, etc.) and [Logitech Options+](https://www.logitech.com/software/logi-options-plus.html) — optional if you only use the in-app buttons
+Do this once. After that, start Easy Clip, start OBS (the app can do that for you), and clip.
 
----
+### 1. Enable OBS WebSocket
 
-## Setup
+1. Open **OBS Studio**.
+2. Go to **Tools → WebSocket Server Settings**.
+3. Check **Enable WebSocket server**.
+4. Leave the port at **4455** unless you know you need something else.
+5. Check **Enable authentication**, pick a password, and save.
+6. In Easy Clip, open **Einstellungen → OBS Verbindung**.
+7. Paste the same password into **Passwort** and click **Einstellungen speichern**.
 
-### 1. Install Node.js (from source only)
+The Server URL (`ws://localhost:4455`) is already correct for a normal OBS install.
 
-1. Download the LTS installer from [nodejs.org](https://nodejs.org/).
-2. Run it. Leave “Add to PATH” checked.
-3. Confirm in a **new** terminal:
+### 2. Point both apps at the same folder
 
-```powershell
-node -v
-npm -v
-```
+Clips are saved under `C:\Clips` by default, sorted into `YYYY\MM` folders.
 
-### 2. Clone and install
+1. In Easy Clip, open **Einstellungen → Speicher**.
+2. Choose a **Clip-Ausgabeordner** (or keep `C:\Clips`).
+3. In OBS: **File → Settings → Output → Recording**.
+4. Set **Recording Path** to that **same folder**.
+5. If Output Mode is **Advanced**, the path is on the **Recording** tab.
 
-```powershell
-git clone https://github.com/Trebossalol/JSClipping.git EasyClip
-cd EasyClip
-npm install
-```
+### 3. Turn on the Replay Buffer
 
-### 3. Configure settings
+Easy Clip saves the buffer — it does not invent footage that OBS has not been recording.
 
-Settings live in **`%APPDATA%\EasyClip\config.json`** (shared by the Electron app and Action Ring).
-
-**Easiest:** start the app and fill in Settings:
-
-```powershell
-npm run dev
-```
-
-| Field | Meaning |
-|---|---|
-| OBS WebSocket URL | Default `ws://localhost:4455` |
-| OBS password | From **OBS → Tools → WebSocket Server Settings** |
-| Clip output folder | Where trimmed clips are written (`YYYY\MM` subfolders are created automatically). Point this at the **same folder OBS uses for Replay Buffer files**. |
-| Clip presets | Buttons in the library (1–6 lengths, minimum 5 seconds). Action Ring still passes `--clip <seconds>`. |
-| Autostart | Launch Easy Clip + OBS (Replay Buffer, tray) at Windows logon |
-
-First launch writes defaults (`ws://localhost:4455`, password `CHANGE_ME`, output `C:\Clips`, presets `30 / 60 / 300 / 600`) into AppData until you change them in Settings.
-
-### 4. Enable the OBS WebSocket server
-
-1. Open OBS.
-2. **Tools → WebSocket Server Settings**.
-3. Enable **Enable WebSocket server**.
-4. Port: `4455` (or change the URL to match).
-5. Enable **Enable authentication**.
-6. Click **Show Connect Info**, copy the password into Easy Clip → Settings → **OBS Verbindung**.
-7. Click **Apply**.
-
-### 5. Turn on the Replay Buffer
-
-Easy Clip does **not** start the buffer unless Autostart is on (or you click start OBS from the app). It only *saves* it.
-
-1. OBS → **Settings → Output**.
-2. Output mode: **Advanced** (if you need the Replay Buffer tab).
-3. Open the **Replay Buffer** tab.
+1. In OBS: **File → Settings → Output**.
+2. If you need the Replay Buffer tab, set Output Mode to **Advanced**.
+3. Open **Replay Buffer**.
 4. Enable **Replay Buffer**.
-5. Set **Maximum Replay Time** to at least as long as your longest preset (e.g. **600 seconds** for 10 minutes).
-6. Set the Replay Buffer recording path to the same folder as Easy Clip’s output folder.
-7. Click **Start Replay Buffer** (or enable Autostart in Easy Clip).
+5. Set **Maximum Replay Time** to at least your longest clip length (for example **600 seconds** if you want 10-minute clips).
+6. Click **Apply** / **OK**.
 
-### 6. Point Easy Clip at a non-default OBS install (optional)
+You can start OBS from Easy Clip: click the status pill in the top bar (**OBS starten**). That launches OBS, switches to your clip scene if you set one, and starts the Replay Buffer.
 
-Packaged autostart looks for `obs64.exe` under `C:\Program Files\obs-studio\…` (and the x86 Program Files equivalent). If yours lives elsewhere, set the `OBS_PATH` environment variable to the full path of `obs64.exe`.
+### 4. Optional: clip scene
 
-From source, [`scripts/autostart.bat`](scripts/autostart.bat) is the fallback — edit `OBS_PATH` there if needed.
+If you have a dedicated OBS scene for clips, pick it under **Einstellungen → OBS Verbindung → Aufnahmeszene**. Easy Clip will use that scene when it starts OBS. Leave it empty to keep whatever scene OBS is already on.
 
 ---
 
-## Using the app
+## How to clip
 
-```powershell
-npm run dev
-```
+OBS must be running, connected (green **OBS verbunden**), and the Replay Buffer must be on. Default lengths are **30s / 1m / 5m / 10m**. You can change those under **Einstellungen → Presets** (1–6 lengths, minimum 5 seconds).
 
-Closing the window **keeps the app in the Windows tray**. Click the tray icon to show the window again; use **Beenden** in the tray menu to quit. The tray icon shows a red badge with the count of clips that still need a title; renaming a clip clears it from that count.
+### From the app
 
-### Library
+The buttons at the top of the library save the last *N* seconds.
 
-- Preset buttons in the header clip the last *N* seconds from the OBS Replay Buffer
-- Grid of recent clips with thumbnails — click to play in your system player
+### Quick Menu (recommended for hotkeys)
+
+This is the small overlay that pops up over your game.
+
+1. Open **Einstellungen → Presets**.
+2. Click the **Schnellmenü** shortcut field and press a combo that includes **Ctrl**, **Alt**, or **Windows** plus a key (for example `Ctrl+Shift+C`).
+3. Save settings.
+
+When you press that shortcut:
+
+- Type an optional title.
+- Pick a length with the mouse, the arrow keys, or **1–6**.
+- **Enter** saves the highlighted length. **Esc** or a click outside closes the menu.
+
+### Direct hotkey per length
+
+On the same Presets page, each length can have its own shortcut. That clips immediately — no menu.
+
+If Windows says a shortcut is already taken, pick a different combo.
+
+---
+
+## Logitech mouse (optional)
+
+You do **not** need Logitech’s old **Actions Ring**. Easy Clip has its own Quick Menu.
+
+In [Logi Options+](https://www.logitech.com/software/logi-options-plus.html):
+
+1. Select your mouse and the button you want (often the gesture button).
+2. Assign that button to the **same keyboard shortcut** you set for Easy Clip’s Quick Menu.
+
+Pressing the button then opens the Quick Menu, even while a game is in the foreground (as long as Easy Clip is running in the tray).
+
+If you would rather skip the menu and clip a fixed length, you can instead assign the button to **Open a file**:
+
+| Length | File | Argument |
+|---|---|---|
+| 30 seconds | `C:\Program Files\EasyClip\EasyClip.exe` | `--clip 30` |
+| 1 minute | same | `--clip 60` |
+| 5 minutes | same | `--clip 300` |
+| 10 minutes | same | `--clip 600` |
+
+The number is seconds. If Easy Clip is already in the tray, that running copy clips; otherwise it starts, clips, and stays in the tray.
+
+---
+
+## Library
+
+**Bibliothek** is your clip list:
+
+- Thumbnails; click a clip to play it
 - Edit the title to rename the file on disk
-- Filter **all** vs **untitled**
+- Filter **all**, **untitled**, or **last 24 hours**
 - Reveal in Explorer, open the cutter, or delete (deletes the file)
 
-The app watches the output folder and imports new video files automatically (`mp4`, `mkv`, `mov`, `webm`, `m4v`), moving them into `YYYY\MM` if they are not already there.
-
-### Clip cutter
-
-Opens a separate window. Keep one or more ranges, split a range at the playhead, then save. The original file is left alone; the result is a new file named `… (cut).mp4` in the same folder and added to the library. Still stream-copy — no re-encode.
-
-### Settings
-
-| Section | What it does |
-|---|---|
-| **OBS Verbindung** | WebSocket URL and password |
-| **Speicher** | Output folder, disk usage of clips vs. free space on that drive |
-| **Presets** | Library button lengths (capped by the OBS Replay Buffer max when connected) |
-| **Autostart** | Windows logon: Easy Clip + OBS with Replay Buffer, minimized to tray |
+New video files dropped into the output folder (`mp4`, `mkv`, `mov`, `webm`, `m4v`) are imported automatically and moved into `YYYY\MM` if they are not already there.
 
 ---
 
-## Logitech Options+ — Action Ring
+## Clip cutter
 
-Open application / Open a file = `C:\Program Files\EasyClip\EasyClip.exe` (or the portable EXE). Argument:
+**Schneiden** opens a separate window.
 
-| Segment label | Argument |
-|---|---|
-| Clip 30s | `--clip 30` |
-| Clip 1m | `--clip 60` |
-| Clip 5m | `--clip 300` |
-| Clip 10m | `--clip 600` |
-
-`--clip=30` works too. The number is seconds, not limited to those four — use whatever matches your presets.
-
-If Easy Clip is already in the tray, that instance clips. Otherwise it starts, clips, and stays in the tray.
+- Play the clip, mark keep-ranges on the timeline, split at the playhead
+- Optionally downscale (never upscale)
+- **Als neuen Clip speichern** writes a new file and leaves the original alone
+- **Original überschreiben** replaces the original
 
 ---
 
-## Manual `--clip` test
+## Settings (German labels)
 
-With OBS open, the Replay Buffer **running**, and Easy Clip installed (or the portable EXE):
-
-```powershell
-& "C:\Program Files\EasyClip\EasyClip.exe" --clip 30
-```
-
-Clips are written under `CLIP_OUTPUT_DIR\YYYY\MM\`.
-
----
-
-## Project layout
-
-```
-EasyClip/
-├── package.json
-├── electron.vite.config.ts
-├── electron-builder.yml
-├── LICENSE
-├── scripts/
-│   ├── autostart.bat         # OBS --startreplaybuffer --minimize-to-tray
-│   └── copy-ffmpeg.mjs       # copies bundled binaries before dist
-├── logs/                     # clip logs when running from source
-└── src/
-    ├── shared/
-    │   ├── config.ts         # AppData config.json
-    │   ├── clip-service.ts   # save+trim and cut (ffmpeg -c copy)
-    │   ├── clips/            # library index, import, rename, delete, cut
-    │   └── …
-    ├── main/                 # Electron main process, tray, autostart
-    ├── preload/
-    └── renderer/             # Electron UI (React + shadcn/ui)
-```
-
-App data (`%APPDATA%\EasyClip\`):
-
-| File | What it is |
+| Menu | What it does |
 |---|---|
-| `config.json` | OBS URL, password, output folder, presets, autostart |
-| `clips.json` | Library index |
-| `thumbnails\` | JPEG previews |
-| `logs\` | Clip logs when packaged |
+| **OBS Verbindung** | WebSocket URL, password, optional clip scene |
+| **Speicher** | Output folder and how much space clips use |
+| **Presets** | Clip lengths, Quick Menu shortcut, per-length hotkeys |
+| **Autostart** | Not available yet — coming in a later update |
+| **Über** | Author and GitHub link |
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Fix |
+| What you see | What to try |
 |---|---|
-| `spawn ffprobe ENOENT` / `spawn ffmpeg ENOENT` | From source: run `npm install`. Packaged: reinstall the app (binaries live in `resources/ffmpeg`). |
-| `Could not connect to OBS WebSocket` / red status pill | OBS is closed, WebSocket is off, wrong password/port. Recheck **Tools → WebSocket Server Settings** and Easy Clip Settings. |
-| `Could not determine saved replay buffer file path` | Replay Buffer is not running, or OBS has not flushed the file within ~10s. Match Easy Clip’s output folder to OBS’s Replay Buffer path. |
-| Preset button disabled / “longer than the OBS buffer” | Raise **Maximum Replay Time** in OBS, or shorten the preset. |
-| Action Ring does nothing | Confirm Open file is `EasyClip.exe` and the argument is `--clip 30`. If the app is already in the tray, that instance should clip; check `%APPDATA%\EasyClip\logs`. |
-| Autostart does not launch OBS | Confirm `obs64.exe` is in the default Program Files path, or set `OBS_PATH`. |
+| **OBS getrennt** / cannot connect | OBS is closed, WebSocket is off, or the password/port is wrong. Recheck **Tools → WebSocket Server Settings** and Easy Clip → **OBS Verbindung**. |
+| **Puffer aus** | Start the Replay Buffer in OBS, or use **OBS starten** from Easy Clip’s status pill. |
+| Preset button greyed out / “longer than the OBS buffer” | Raise **Maximum Replay Time** in OBS, or shorten the preset. |
+| “Wrong OBS scene” | Start OBS from Easy Clip so it switches to your clip scene, or clear the scene setting. |
+| Quick Menu / hotkey does nothing | Easy Clip must be running (tray is enough). The shortcut needs Ctrl, Alt, or Windows plus a key, and must not already be used by Windows or another app. |
+| Logitech button does nothing | Confirm Logi Options+ sends the same shortcut as **Schnellmenü**, and that Easy Clip is in the tray. |
+| OBS will not start from the app | Easy Clip looks for `obs64.exe` under `C:\Program Files\obs-studio\…`. If yours is elsewhere, set a Windows environment variable `OBS_PATH` to the full path of `obs64.exe`. |
+| Clips land in the wrong place | Easy Clip’s output folder and OBS’s recording path must be the same. |
+
+Logs (if you need them): `%APPDATA%\EasyClip\logs`.
 
 ---
 
-## License
+## For developers
 
-[MIT](LICENSE). Use it, fork it, clip everything. The software is provided **as is**, with **no warranty**. You keep any risk; the author is not liable for anything that happens if you use it.
+```powershell
+git clone https://github.com/Trebossalol/easy-clip.git EasyClip
+cd EasyClip
+npm install
+npm run dev
+```
+
+Packaged build (`dist/EasyClip-Setup-….exe` and the portable EXE):
+
+```powershell
+npm run dist
+```
+
+From source you need [Node.js](https://nodejs.org/) 18+. `npm install` pulls in FFmpeg; the packaged app bundles it under `resources/ffmpeg/`.

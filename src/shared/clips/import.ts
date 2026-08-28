@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getVideoDuration } from "../clip-service.js";
+import { getVideoInfo } from "../clip-service.js";
 import type { ClipRecord } from "../ipc.js";
 import { ensureDir, isVideoFile } from "../paths.js";
 import { generateThumbnail } from "../thumbnail.js";
@@ -25,6 +25,9 @@ function applyUserFileName(
   if (!stem) return { filePath, namedByUser: false };
   const dir = path.dirname(filePath);
   const ext = path.extname(filePath);
+  if (stem === path.basename(filePath, ext)) {
+    return { filePath, namedByUser: true };
+  }
   const dest = uniquePath(dir, stem, ext);
   if (path.normalize(dest) !== path.normalize(filePath)) {
     ignorePathTemporarily(filePath);
@@ -42,7 +45,12 @@ function applyUserFileName(
 export async function importClipFromFile(
   options: ClipsStoreOptions,
   filePath: string,
-  opts?: { createdAt?: Date; durationSeconds?: number | null; name?: string },
+  opts?: {
+    createdAt?: Date;
+    durationSeconds?: number | null;
+    name?: string;
+    namedByUser?: boolean;
+  },
 ): Promise<ClipRecord | null> {
   const { appDataDir, outputDir } = options;
   if (!fs.existsSync(filePath) || !isVideoFile(filePath)) return null;
@@ -62,12 +70,15 @@ export async function importClipFromFile(
     const named = applyUserFileName(movedPath, opts?.name);
 
     let durationSeconds = opts?.durationSeconds ?? null;
-    if (durationSeconds == null) {
-      try {
-        durationSeconds = await getVideoDuration(named.filePath);
-      } catch {
-        durationSeconds = null;
-      }
+    let width: number | null = null;
+    let height: number | null = null;
+    try {
+      const info = await getVideoInfo(named.filePath);
+      durationSeconds = durationSeconds ?? info.durationSeconds;
+      width = info.width;
+      height = info.height;
+    } catch {
+      // Duration / size stay whatever we already have.
     }
 
     const id = newClipId();
@@ -83,9 +94,11 @@ export async function importClipFromFile(
       name: path.basename(named.filePath, path.extname(named.filePath)),
       createdAt: createdAt.toISOString(),
       durationSeconds,
+      width,
+      height,
       thumbnailPath,
       missing: false,
-      namedByUser: named.namedByUser,
+      namedByUser: opts?.namedByUser ?? named.namedByUser,
     };
 
     // Re-read in case another import finished while we were working
@@ -120,7 +133,7 @@ export async function scanAndImportExisting(
     }
   }
 
-  // Refresh missing flags and persist year/month moves for already-indexed clips
+  // Refresh missing flags, probe size for older rows, persist year/month moves
   const clips = readStore(appDataDir);
   let changed = false;
   for (const clip of clips) {
@@ -137,6 +150,22 @@ export async function scanAndImportExisting(
       clip.filePath = moved;
       clip.missing = false;
       changed = true;
+    }
+    if (clip.width == null || clip.height == null) {
+      try {
+        const info = await getVideoInfo(clip.filePath);
+        if (info.width != null && info.height != null) {
+          clip.width = info.width;
+          clip.height = info.height;
+          changed = true;
+        }
+        if (clip.durationSeconds == null && info.durationSeconds != null) {
+          clip.durationSeconds = info.durationSeconds;
+          changed = true;
+        }
+      } catch {
+        // Probe is best-effort for legacy library rows.
+      }
     }
   }
   if (changed) writeStore(appDataDir, clips);

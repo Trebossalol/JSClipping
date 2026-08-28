@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { ClipRecord, CutRange } from "@shared/ipc";
+import type { ClipRecord, CutRange, ScaleTarget } from "@shared/ipc";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +57,12 @@ function CutterTab({
   busy: boolean;
   error?: string | null;
   onClose: () => void;
-  onSave: (ranges: CutRange[], overwrite?: boolean) => void;
+  onSave: (
+    ranges: CutRange[],
+    overwrite?: boolean,
+    scale?: ScaleTarget | null,
+    name?: string | null,
+  ) => void;
 }) {
   const loader = useTopLoader();
   const [fetched, setFetched] = useState<ClipRecord | null>(null);
@@ -249,6 +254,8 @@ export function CutterApp() {
     clipId: string,
     ranges: CutRange[],
     overwrite = false,
+    scale?: ScaleTarget | null,
+    name?: string | null,
   ): Promise<void> {
     setBusyId(clipId);
     setCutErrors((prev) => {
@@ -259,7 +266,7 @@ export function CutterApp() {
     });
     try {
       const result = await loader.wrap(() =>
-        window.api.cutClip(clipId, ranges, overwrite),
+        window.api.cutClip(clipId, ranges, overwrite, scale, name),
       );
       if (!result.ok) {
         setCutErrors((prev) => ({ ...prev, [clipId]: result.error }));
@@ -366,7 +373,9 @@ export function CutterApp() {
                 busy={busyId === id}
                 error={cutErrors[id] ?? null}
                 onClose={() => closeTab(id)}
-                onSave={(ranges, overwrite) => void saveCut(id, ranges, overwrite)}
+                onSave={(ranges, overwrite, scale, name) =>
+                  void saveCut(id, ranges, overwrite, scale, name)
+                }
               />
             </TabsContent>
           ))}

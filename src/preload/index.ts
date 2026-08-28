@@ -6,6 +6,7 @@ import {
   type CreateClipResult,
   type CutClipResult,
   type CutRange,
+  type ScaleTarget,
   type ElectronApi,
   type HotkeyClipPayload,
   type ObsScenesResult,
@@ -50,8 +51,10 @@ const api: ElectronApi = {
     id: string,
     ranges: CutRange[],
     overwrite?: boolean,
+    scale?: ScaleTarget | null,
+    name?: string | null,
   ): Promise<CutClipResult> =>
-    ipcRenderer.invoke(IpcChannels.cutClip, id, ranges, overwrite),
+    ipcRenderer.invoke(IpcChannels.cutClip, id, ranges, overwrite, scale, name),
   getClip: (id: string) => ipcRenderer.invoke(IpcChannels.getClip, id),
   openCutter: (id?: string) => ipcRenderer.invoke(IpcChannels.openCutter, id),
   onCutterOpenClip: (callback: (id: string) => void) => {
@@ -105,6 +108,8 @@ const api: ElectronApi = {
   closeQuickAction: () => ipcRenderer.invoke(IpcChannels.closeQuickAction),
   selectQuickAction: (seconds: number, title?: string) =>
     ipcRenderer.invoke(IpcChannels.selectQuickAction, seconds, title),
+  openExternal: (url: string) =>
+    ipcRenderer.invoke(IpcChannels.openExternal, url),
 };
 
 contextBridge.exposeInMainWorld("api", api);

@@ -9,7 +9,7 @@ import {
   renameClip,
   scanAndImportExisting,
 } from "../shared/clips/index.js";
-import { IpcChannels, type AppConfigDto, type CutRange } from "../shared/ipc.js";
+import { IpcChannels, type AppConfigDto, type CutRange, type ScaleTarget } from "../shared/ipc.js";
 import { configuredObsScene } from "../shared/obs.js";
 import { getStorageInfo } from "../shared/storage.js";
 import { setAppAutostartEnabled } from "./autostart.js";
@@ -160,8 +160,14 @@ export function registerIpc(): void {
 
   ipcMain.handle(
     IpcChannels.cutClip,
-    (_event, id: string, ranges: CutRange[], overwrite?: boolean) =>
-      runCutClip(id, ranges, overwrite),
+    (
+      _event,
+      id: string,
+      ranges: CutRange[],
+      overwrite?: boolean,
+      scale?: ScaleTarget | null,
+      name?: string | null,
+    ) => runCutClip(id, ranges, overwrite, scale, name),
   );
 
   ipcMain.handle(IpcChannels.getStorage, async () => {
@@ -187,6 +193,23 @@ export function registerIpc(): void {
     const clip = findClip(getAppDataDir(), id);
     if (!clip) return { ok: false, error: "Clip nicht gefunden." };
     shell.showItemInFolder(clip.filePath);
+    return { ok: true };
+  });
+
+  ipcMain.handle(IpcChannels.openExternal, async (_event, url: string) => {
+    if (typeof url !== "string") {
+      return { ok: false, error: "Ungültige Adresse." };
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return { ok: false, error: "Ungültige Adresse." };
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return { ok: false, error: "Ungültige Adresse." };
+    }
+    await shell.openExternal(parsed.toString());
     return { ok: true };
   });
 }

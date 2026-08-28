@@ -6,7 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import type { OBSWebSocket } from "obs-websocket-js";
 import { MIN_CUT_RANGE_SECONDS } from "./app.config.js";
-import type { CutRange } from "./ipc.js";
+import type { CutRange, ScaleTarget } from "./ipc.js";
 import type { RunLog } from "./log.js";
 import { ensureDir, getFfmpegPath, getFfprobePath, yearMonthDir } from "./paths.js";
 
@@ -60,6 +60,70 @@ function ffmpegMessage(err: unknown): string {
     }
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+export interface VideoInfo {
+  durationSeconds: number | null;
+  width: number | null;
+  height: number | null;
+}
+
+function positiveInt(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+export async function getVideoInfo(filePath: string): Promise<VideoInfo> {
+  const { stdout } = await execFileAsync(
+    getFfprobePath(),
+    [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height:format=duration",
+      "-of",
+      "json",
+      filePath,
+    ],
+    FFMPEG_OPTS,
+  );
+  const parsed = JSON.parse(stdout) as {
+    streams?: Array<{ width?: unknown; height?: unknown }>;
+    format?: { duration?: unknown };
+  };
+  let stream = parsed.streams?.find(
+    (item) => positiveInt(item.width) != null && positiveInt(item.height) != null,
+  );
+  if (!stream) {
+    const retry = await execFileAsync(
+      getFfprobePath(),
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "json",
+        filePath,
+      ],
+      FFMPEG_OPTS,
+    );
+    const retryParsed = JSON.parse(retry.stdout) as {
+      streams?: Array<{ width?: unknown; height?: unknown }>;
+    };
+    stream = retryParsed.streams?.[0];
+  }
+  const duration = parseFloat(String(parsed.format?.duration ?? ""));
+  return {
+    durationSeconds:
+      Number.isFinite(duration) && duration > 0 ? duration : null,
+    width: positiveInt(stream?.width),
+    height: positiveInt(stream?.height),
+  };
 }
 
 export async function getVideoDuration(filePath: string): Promise<number> {
@@ -199,16 +263,88 @@ async function concatSegments(
   );
 }
 
+function coerceScale(value: ScaleTarget | null | undefined): ScaleTarget | null {
+  if (value == null) return null;
+  const width = Number(value.width);
+  const height = Number(value.height);
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new Error("Ungültige Zielauflösung.");
+  }
+  if (width % 2 !== 0 || height % 2 !== 0) {
+    throw new Error("Die Zielauflösung muss gerade Zahlen verwenden.");
+  }
+  return { width, height };
+}
+
+function resolveDownscale(
+  requested: ScaleTarget | null | undefined,
+  source: VideoInfo,
+  log?: RunLog,
+): ScaleTarget | null {
+  const scale = coerceScale(requested);
+  if (!scale) return null;
+  if (source.width == null || source.height == null) {
+    throw new Error("Die Auflösung der Quelle konnte nicht ermittelt werden.");
+  }
+  if (scale.width > source.width || scale.height > source.height) {
+    throw new Error("Hochskalieren ist nicht möglich.");
+  }
+  if (scale.width === source.width && scale.height === source.height) {
+    return null;
+  }
+  log?.info(`Downscale ${source.width}x${source.height} → ${scale.width}x${scale.height}`);
+  return scale;
+}
+
+async function scaleVideoToFile(
+  src: string,
+  dst: string,
+  scale: ScaleTarget,
+  log?: RunLog,
+): Promise<void> {
+  const vf =
+    `scale=${scale.width}:${scale.height}:flags=lanczos:force_original_aspect_ratio=decrease:force_divisible_by=2,` +
+    `pad=${scale.width}:${scale.height}:(ow-iw)/2:(oh-ih)/2`;
+  const ext = path.extname(dst).toLowerCase();
+  const args = [
+    "-y",
+    "-i",
+    src,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a?",
+    "-vf",
+    vf,
+    "-c:v",
+    "libx264",
+    "-crf",
+    "18",
+    "-preset",
+    "medium",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "copy",
+  ];
+  if (ext === ".mp4" || ext === ".m4v" || ext === ".mov") {
+    args.push("-movflags", "+faststart");
+  }
+  args.push(dst);
+  await runFfmpeg(args, log);
+}
+
 export async function cutVideoToFile(
   src: string,
   dst: string,
   ranges: CutRange[],
-  log?: RunLog,
-): Promise<{ durationSeconds: number }> {
+  options?: { log?: RunLog; scale?: ScaleTarget | null },
+): Promise<{ durationSeconds: number; width: number | null; height: number | null }> {
   if (!fs.existsSync(src)) {
     throw new Error("Die Clip-Datei fehlt.");
   }
 
+  const log = options?.log;
   const total = await getVideoDuration(src);
   const normalized = normalizeCutRanges(ranges, total);
   log?.info(`Source duration: ${total}s`);
@@ -218,33 +354,76 @@ export async function cutVideoToFile(
       .join(", ")}`,
   );
 
+  const scaleTo = resolveDownscale(options?.scale, await getVideoInfo(src), log);
+
   ensureDir(path.dirname(dst));
 
-  if (normalized.length === 1) {
-    const range = normalized[0]!;
-    await extractRange(src, dst, range.start, range.end - range.start, log);
-  } else {
-    const tmp = path.join(os.tmpdir(), `easyclip-cut-${crypto.randomUUID()}`);
-    ensureDir(tmp);
-    try {
-      const ext = path.extname(src) || ".mp4";
-      const parts: string[] = [];
-      for (let i = 0; i < normalized.length; i++) {
-        const range = normalized[i]!;
-        const part = path.join(tmp, `seg-${i}${ext}`);
-        await extractRange(src, part, range.start, range.end - range.start, log);
-        parts.push(part);
+  const ext = path.extname(src) || ".mp4";
+  const cutDest = scaleTo
+    ? path.join(os.tmpdir(), `easyclip-cut-${crypto.randomUUID()}${ext}`)
+    : dst;
+
+  try {
+    if (normalized.length === 1) {
+      const range = normalized[0]!;
+      await extractRange(src, cutDest, range.start, range.end - range.start, log);
+    } else {
+      const tmp = path.join(os.tmpdir(), `easyclip-cut-${crypto.randomUUID()}`);
+      ensureDir(tmp);
+      try {
+        const parts: string[] = [];
+        for (let i = 0; i < normalized.length; i++) {
+          const range = normalized[i]!;
+          const part = path.join(tmp, `seg-${i}${ext}`);
+          await extractRange(src, part, range.start, range.end - range.start, log);
+          parts.push(part);
+        }
+        await concatSegments(parts, cutDest, log);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
       }
-      await concatSegments(parts, dst, log);
-    } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+
+    if (scaleTo) {
+      await scaleVideoToFile(cutDest, dst, scaleTo, log);
+    }
+  } finally {
+    if (scaleTo && cutDest !== dst) {
+      try {
+        if (fs.existsSync(cutDest)) fs.unlinkSync(cutDest);
+      } catch {
+        // Temp cleanup is best-effort.
+      }
     }
   }
 
-  const durationSeconds = await getVideoDuration(dst);
+  let durationSeconds: number;
+  let width: number | null = null;
+  let height: number | null = null;
+  try {
+    const out = await getVideoInfo(dst);
+    width = out.width;
+    height = out.height;
+    durationSeconds = out.durationSeconds ?? (await getVideoDuration(dst));
+  } catch {
+    durationSeconds = await getVideoDuration(dst);
+  }
   log?.info(`Output file: ${dst} (${fileSize(dst)} bytes)`);
   log?.info(`Output duration: ${durationSeconds}s`);
-  return { durationSeconds };
+  if (width && height) {
+    log?.info(`Output size: ${width}x${height}`);
+  }
+  if (
+    scaleTo &&
+    width != null &&
+    height != null &&
+    (width !== scaleTo.width || height !== scaleTo.height)
+  ) {
+    throw new Error(
+      `Die Ausgabeauflösung ist ${width}×${height}, erwartet ${scaleTo.width}×${scaleTo.height}.`,
+    );
+  }
+  return { durationSeconds, width, height };
 }
 
 export interface SaveAndTrimOptions {
@@ -312,7 +491,7 @@ export async function saveAndTrimClip(
     savedPath,
     dst,
     [{ start, end: total }],
-    log,
+    { log },
   );
 
   log?.info(`Saved ${seconds}s clip: ${dst}`);

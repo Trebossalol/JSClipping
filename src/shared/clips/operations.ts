@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { cutVideoToFile } from "../clip-service.js";
-import type { ClipRecord, CutRange } from "../ipc.js";
+import type { ClipRecord, CutRange, ScaleTarget } from "../ipc.js";
 import { generateThumbnail } from "../thumbnail.js";
 import { ignorePathTemporarily } from "./ignore.js";
 import { importClipFromFile } from "./import.js";
@@ -126,6 +126,8 @@ export async function cutClipToNewFile(
   options: ClipsStoreOptions,
   id: string,
   ranges: CutRange[],
+  scale?: ScaleTarget | null,
+  name?: string | null,
 ): Promise<{ ok: true; clip: ClipRecord } | { ok: false; error: string }> {
   const { appDataDir } = options;
   const clip = findClip(appDataDir, id);
@@ -136,13 +138,24 @@ export async function cutClipToNewFile(
 
   const dir = path.dirname(clip.filePath);
   const ext = path.extname(clip.filePath) || ".mp4";
-  const stem = `${path.basename(clip.filePath, ext)} (cut)`;
+  const requested = name?.trim();
+  const stem = requested
+    ? sanitizeFileStem(requested)
+    : `${path.basename(clip.filePath, ext)} (cut)`;
+  if (!stem) {
+    return { ok: false, error: "Der Name ist nach dem Entfernen ungültiger Zeichen leer." };
+  }
   const dest = uniquePath(dir, stem, ext);
 
-  ignorePathTemporarily(dest, 15_000);
+  ignorePathTemporarily(dest, scale ? 15 * 60_000 : 15_000);
   try {
-    const { durationSeconds } = await cutVideoToFile(clip.filePath, dest, ranges);
-    const record = await importClipFromFile(options, dest, { durationSeconds });
+    const { durationSeconds } = await cutVideoToFile(clip.filePath, dest, ranges, {
+      scale,
+    });
+    const record = await importClipFromFile(options, dest, {
+      durationSeconds,
+      namedByUser: Boolean(requested),
+    });
     if (record) return { ok: true, clip: record };
 
     const existing = listClips(appDataDir).find(
@@ -163,6 +176,8 @@ export async function cutClipOverwrite(
   options: ClipsStoreOptions,
   id: string,
   ranges: CutRange[],
+  scale?: ScaleTarget | null,
+  name?: string | null,
 ): Promise<{ ok: true; clip: ClipRecord } | { ok: false; error: string }> {
   const { appDataDir } = options;
   const clip = findClip(appDataDir, id);
@@ -177,12 +192,14 @@ export async function cutClipOverwrite(
     `easyclip-overwrite-${crypto.randomUUID()}${ext}`,
   );
 
-  ignorePathTemporarily(clip.filePath, 60_000);
+  const ignoreMs = scale ? 15 * 60_000 : 60_000;
+  ignorePathTemporarily(clip.filePath, ignoreMs);
   try {
-    const { durationSeconds } = await cutVideoToFile(
+    const { durationSeconds, width, height } = await cutVideoToFile(
       clip.filePath,
       tempDest,
       ranges,
+      { scale },
     );
     ignorePathTemporarily(clip.filePath, 15_000);
     fs.copyFileSync(tempDest, clip.filePath);
@@ -201,11 +218,18 @@ export async function cutClipOverwrite(
     const updated: ClipRecord = {
       ...clips[index]!,
       durationSeconds,
+      width: width ?? clips[index]!.width,
+      height: height ?? clips[index]!.height,
       thumbnailPath,
       missing: false,
     };
     clips[index] = updated;
     writeStore(appDataDir, clips);
+    const requested = name?.trim();
+    if (requested) {
+      const renamed = renameClip(appDataDir, id, requested);
+      if (renamed.ok) return renamed;
+    }
     return { ok: true, clip: updated };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

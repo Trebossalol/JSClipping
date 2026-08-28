@@ -80,6 +80,10 @@ export interface ClipRecord {
   name: string;
   createdAt: string;
   durationSeconds: number | null;
+  /** Coded frame width; `null` when unknown. */
+  width?: number | null;
+  /** Coded frame height; `null` when unknown. */
+  height?: number | null;
   /** File size in bytes; `null` when the file is missing. */
   fileSizeBytes?: number | null;
   thumbnailPath: string | null;
@@ -93,6 +97,12 @@ export interface ClipRecord {
 export interface CutRange {
   start: number;
   end: number;
+}
+
+/** Target frame size for cutter downscale. Both sides must be ≤ source. */
+export interface ScaleTarget {
+  width: number;
+  height: number;
 }
 
 export interface StorageInfo {
@@ -128,6 +138,7 @@ export const IpcChannels = {
   quickActionOpened: "quick-action:opened",
   closeQuickAction: "quick-action:close",
   selectQuickAction: "quick-action:select",
+  openExternal: "shell:open-external",
 } as const;
 
 export type CreateClipResult =
@@ -172,6 +183,8 @@ export interface ElectronApi {
     id: string,
     ranges: CutRange[],
     overwrite?: boolean,
+    scale?: ScaleTarget | null,
+    name?: string | null,
   ): Promise<CutClipResult>;
   getClip(id: string): Promise<ClipRecord | null>;
   openCutter(id?: string): Promise<{ ok: boolean; error?: string }>;
@@ -186,6 +199,7 @@ export interface ElectronApi {
   onQuickActionOpened(callback: () => void): () => void;
   closeQuickAction(): Promise<void>;
   selectQuickAction(seconds: number, title?: string): Promise<void>;
+  openExternal(url: string): Promise<{ ok: boolean; error?: string }>;
 }
 
 declare global {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { APP_NAME } from "@shared/app.config";
 import {
   ChevronRightIcon,
@@ -35,6 +35,7 @@ export const SETTINGS_SECTIONS = [
   { id: "storage", title: "Speicher" },
   { id: "presets", title: "Presets" },
   { id: "autostart", title: "Autostart" },
+  { id: "about", title: "Über" },
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];
@@ -55,7 +56,12 @@ export function AppSidebar({
   onUntitled,
   onOpenCutter,
 }: AppSidebarProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsActive = view !== "library";
+  const [settingsOpen, setSettingsOpen] = useState(settingsActive);
+
+  useEffect(() => {
+    if (settingsActive) setSettingsOpen(true);
+  }, [settingsActive]);
 
   return (
     <Sidebar collapsible="icon">

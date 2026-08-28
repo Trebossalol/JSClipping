@@ -40,12 +40,19 @@ import {
   FolderOpenIcon,
   HardDriveIcon,
   LayoutGridIcon,
+  MonitorIcon,
   PlayIcon,
   ScissorsIcon,
   Trash2Icon,
 } from "lucide-react";
 import type { ClipRecord } from "@shared/ipc";
-import { formatBytes, formatDate, formatDuration } from "../format";
+import {
+  formatBytes,
+  formatDate,
+  formatDuration,
+  formatPixels,
+  formatResolution,
+} from "../format";
 import { DeleteClipDialog } from "./DeleteClipDialog";
 
 const PAGE_SIZE = 12;
@@ -81,7 +88,24 @@ function pageItems(current: number, total: number): Array<number | "ellipsis"> {
   return items;
 }
 
-export type ClipFilter = "all" | "untitled";
+export type ClipFilter = "all" | "untitled" | "last24h";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isLast24h(createdAt: string): boolean {
+  const t = new Date(createdAt).getTime();
+  return Number.isFinite(t) && Date.now() - t <= DAY_MS;
+}
+
+function filterClips(clips: ClipRecord[], filter: ClipFilter): ClipRecord[] {
+  if (filter === "untitled") {
+    return clips.filter((c) => !c.namedByUser && !c.missing);
+  }
+  if (filter === "last24h") {
+    return clips.filter((c) => isLast24h(c.createdAt));
+  }
+  return clips;
+}
 
 interface ClipCardProps {
   clip: ClipRecord;
@@ -123,6 +147,8 @@ function ClipCard({
   }
 
   const duration = formatDuration(clip.durationSeconds);
+  const resolution = formatResolution(clip.width, clip.height);
+  const pixels = formatPixels(clip.width, clip.height);
   const fileSize =
     clip.fileSizeBytes != null && clip.fileSizeBytes > 0
       ? formatBytes(clip.fileSizeBytes)
@@ -164,6 +190,26 @@ function ClipCard({
             )}
           </div>
         )}
+        {resolution ? (
+          <div className="absolute left-2 top-2">
+            {pixels && pixels !== resolution ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="secondary">
+                    <MonitorIcon data-icon="inline-start" />
+                    {resolution}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>{pixels}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Badge variant="secondary">
+                <MonitorIcon data-icon="inline-start" />
+                {resolution}
+              </Badge>
+            )}
+          </div>
+        ) : null}
         <div className="absolute inset-x-2 bottom-2 flex items-end justify-between gap-1">
           <Badge variant="secondary" className="max-w-[min(100%,11rem)] truncate">
             <CalendarIcon data-icon="inline-start" />
@@ -294,10 +340,7 @@ export function RecentClips({
   const [deleting, setDeleting] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const visible =
-    filter === "untitled"
-      ? clips.filter((c) => !c.namedByUser && !c.missing)
-      : clips;
+  const visible = filterClips(clips, filter);
 
   let nextPage = page;
   if (pageFilter !== filter || pageNewestId !== newestId) {
@@ -359,7 +402,7 @@ export function RecentClips({
             size="sm"
             value={filter}
             onValueChange={(value) => {
-              if (value === "all" || value === "untitled") {
+              if (value === "all" || value === "untitled" || value === "last24h") {
                 onFilterChange(value);
               }
             }}
@@ -372,6 +415,10 @@ export function RecentClips({
               <FilePenIcon data-icon="inline-start" />
               Unbenannt
             </ToggleGroupItem>
+            <ToggleGroupItem value="last24h" title="Nur Clips der letzten 24 Stunden">
+              <ClockIcon data-icon="inline-start" />
+              24 Std.
+            </ToggleGroupItem>
           </ToggleGroup>
         </div>
       </div>
@@ -382,12 +429,18 @@ export function RecentClips({
               {clips.length === 0 ? <FilmIcon /> : <FileQuestionIcon />}
             </EmptyMedia>
             <EmptyTitle>
-              {clips.length === 0 ? "Noch keine Clips" : "Keine unbenannten Clips"}
+              {clips.length === 0
+                ? "Noch keine Clips"
+                : filter === "last24h"
+                  ? "Keine Clips der letzten 24 Stunden"
+                  : "Keine unbenannten Clips"}
             </EmptyTitle>
             <EmptyDescription>
               {clips.length === 0
                 ? "Speichere einen Replay aus OBS oder drücke eine Clip-Schaltfläche."
-                : "Jeder Clip in der Bibliothek hat einen Titel."}
+                : filter === "last24h"
+                  ? "Es gibt keine Clips aus den letzten 24 Stunden."
+                  : "Jeder Clip in der Bibliothek hat einen Titel."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

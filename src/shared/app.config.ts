@@ -3,6 +3,12 @@
 /** Display name (UI, tray, window title, shortcuts). */
 export const APP_NAME = "Easy Clip";
 
+/** Public author name shown on the About page. */
+export const APP_AUTHOR = "Trebossa";
+
+/** Source repository opened from the About page. */
+export const APP_GITHUB_URL = "https://github.com/Trebossalol/easy-clip";
+
 /** Product id (exe, AppData folder, installer artifacts). */
 export const APP_ID = "EasyClip";
 

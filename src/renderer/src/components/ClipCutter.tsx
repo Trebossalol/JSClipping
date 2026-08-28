@@ -1,13 +1,35 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { MIN_CUT_RANGE_SECONDS } from "@shared/app.config";
-import { type ClipRecord, type CutRange } from "@shared/ipc";
-import { formatBytes, formatDuration, formatTimecode, parseTimecode } from "../format";
+import { type ClipRecord, type CutRange, type ScaleTarget } from "@shared/ipc";
 import {
+  formatBytes,
+  formatDuration,
+  formatEstimateBytes,
+  formatPixels,
+  formatResolution,
+  formatTimecode,
+  parseTimecode,
+  downscaleResolutions,
+  estimateOutputBytes,
+  resolutionKey,
+} from "../format";
+import {
+  ChevronDownIcon,
+  MonitorIcon,
   PauseIcon,
   PlayIcon,
   SaveIcon,
@@ -112,6 +134,43 @@ function timeFromClientX(
   return clamp(((clientX - rect.left) / rect.width) * duration, 0, duration);
 }
 
+const ORIGINAL_SCALE = "original";
+
+function parseScaleKey(key: string): ScaleTarget | null {
+  const match = /^(\d+)x(\d+)$/.exec(key);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isInteger(width) || !Number.isInteger(height)) return null;
+  return { width, height };
+}
+
+function ResolutionChoice({
+  title,
+  pixels,
+  bytes,
+}: {
+  title: string;
+  pixels?: string;
+  bytes?: number | null;
+}) {
+  return (
+    <span className="flex w-full min-w-0 items-baseline justify-between gap-6">
+      <span className="flex min-w-0 flex-col">
+        <span>{title}</span>
+        {pixels ? (
+          <span className="text-xs font-normal text-muted-foreground">{pixels}</span>
+        ) : null}
+      </span>
+      {bytes != null && bytes > 0 ? (
+        <span className="shrink-0 text-xs font-normal tabular-nums text-muted-foreground">
+          {formatEstimateBytes(bytes)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 interface TimeFieldProps {
   value: number;
   disabled?: boolean;
@@ -163,7 +222,12 @@ interface ClipCutterProps {
   active?: boolean;
   error?: string | null;
   onCancel: () => void;
-  onSave: (ranges: CutRange[], overwrite?: boolean) => void;
+  onSave: (
+    ranges: CutRange[],
+    overwrite?: boolean,
+    scale?: ScaleTarget | null,
+    name?: string | null,
+  ) => void;
 }
 
 export function ClipCutter({
@@ -192,6 +256,16 @@ export function ClipCutter({
   );
   const [gapHint, setGapHint] = useState<string | null>(null);
   const [saveMode, setSaveMode] = useState<"new" | "overwrite" | null>(null);
+  const [sourceSize, setSourceSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(() =>
+    clip.width && clip.height && clip.width > 0 && clip.height > 0
+      ? { width: clip.width, height: clip.height }
+      : null,
+  );
+  const [scaleKey, setScaleKey] = useState(ORIGINAL_SCALE);
+  const [clipName, setClipName] = useState(clip.name);
   const currentTimeRef = useRef(0);
   const rangesRef = useRef(ranges);
   const selectedIdRef = useRef(selectedId);
@@ -210,8 +284,33 @@ export function ClipCutter({
     video.load();
   }, [busy, clip.mediaUrl]);
 
+  useEffect(() => {
+    setClipName(clip.name);
+  }, [clip.name]);
+
   const selected = ranges.find((range) => range.id === selectedId) ?? null;
   const totalKeep = keepTotal(ranges);
+  const downscales = downscaleResolutions(sourceSize?.width, sourceSize?.height);
+  const scaleValid =
+    scaleKey === ORIGINAL_SCALE ||
+    downscales.some((item) => resolutionKey(item.width, item.height) === scaleKey);
+  const activeScaleKey = scaleValid ? scaleKey : ORIGINAL_SCALE;
+  function estimateFor(
+    targetWidth?: number | null,
+    targetHeight?: number | null,
+  ): number | null {
+    if (!sourceSize) return null;
+    return estimateOutputBytes({
+      fileSizeBytes: clip.fileSizeBytes,
+      sourceDuration: duration,
+      keepDuration: totalKeep,
+      sourceWidth: sourceSize.width,
+      sourceHeight: sourceSize.height,
+      targetWidth,
+      targetHeight,
+    });
+  }
+  const originalBytes = estimateFor();
   const canSave =
     !busy &&
     duration > 0 &&
@@ -225,14 +324,15 @@ export function ClipCutter({
     }
     function onKey(e: KeyboardEvent): void {
       if (document.querySelector('[data-slot="dialog-content"]')) return;
-      if (e.key === "Escape" && !busy) {
-        onCancel();
-        return;
-      }
+      if (document.querySelector('[data-slot="dropdown-menu-content"]')) return;
       const target = e.target as HTMLElement | null;
       const typing =
         target?.tagName === "INPUT" || target?.tagName === "TEXTAREA";
       if (typing) return;
+      if (e.key === "Escape" && !busy) {
+        onCancel();
+        return;
+      }
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
         void togglePlay();
@@ -355,6 +455,9 @@ export function ClipCutter({
     if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
     const next = video.duration;
     setDuration(next);
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      setSourceSize({ width: video.videoWidth, height: video.videoHeight });
+    }
     setRanges((prev) => {
       if (prev.length > 0) {
         return prev.map((range) => ({
@@ -420,26 +523,30 @@ export function ClipCutter({
     const next = sortedRanges(ranges).map(({ start, end }) => ({ start, end }));
     setSaveMode(overwrite ? "overwrite" : "new");
     if (overwrite) releaseVideo();
-    onSave(next, overwrite);
+    const trimmed = clipName.trim();
+    const nextName = trimmed && trimmed !== clip.name ? trimmed : null;
+    onSave(next, overwrite, parseScaleKey(scaleKey), nextName);
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <div className="border-b bg-card px-4 py-3">
-        <h2
-          id="cut-clip-title"
-          className="flex items-center gap-1.5 text-sm font-medium"
-        >
-          <ScissorsIcon className="size-4" />
-          Clip schneiden
-        </h2>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {clip.name}
-          {clip.fileSizeBytes
-            ? ` · ${formatBytes(clip.fileSizeBytes)}`
-            : ""}
-        </p>
-      </div>
+          <Input
+            value={clipName}
+            disabled={busy}
+            aria-label="Clip-Name"
+            title="Name des gespeicherten Clips"
+            placeholder="Clip-Name"
+            className="h-8"
+            onChange={(e) => setClipName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+          />
+        </div>
 
       <div className="relative min-h-0 flex-1 p-4 pb-0">
         <div className="relative h-full overflow-hidden rounded-lg bg-black">
@@ -647,7 +754,80 @@ export function ClipCutter({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 justify-end border-t px-4 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                title="Ausgabeauflösung. Nur Verkleinern, kein Hochskalieren."
+              >
+                <MonitorIcon data-icon="inline-start" />
+                {activeScaleKey === ORIGINAL_SCALE
+                  ? `Original${
+                      sourceSize
+                        ? ` · ${formatResolution(sourceSize.width, sourceSize.height)}`
+                        : ""
+                    }`
+                  : (downscales.find(
+                      (item) =>
+                        resolutionKey(item.width, item.height) === activeScaleKey,
+                    )?.label ?? "Auflösung")}
+                <ChevronDownIcon data-icon="inline-end" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-auto min-w-64">
+              <DropdownMenuLabel>Auflösung · geschätzte Größe</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={activeScaleKey}
+                onValueChange={(value) => {
+                  if (typeof value === "string" && value) setScaleKey(value);
+                }}
+              >
+                <DropdownMenuRadioItem
+                  value={ORIGINAL_SCALE}
+                  className="items-start py-1.5"
+                  onSelect={() => setScaleKey(ORIGINAL_SCALE)}
+                >
+                  <ResolutionChoice
+                    title="Original"
+                    pixels={
+                      sourceSize
+                        ? formatPixels(sourceSize.width, sourceSize.height)
+                        : undefined
+                    }
+                    bytes={originalBytes}
+                  />
+                </DropdownMenuRadioItem>
+                {downscales.length > 0 ? <DropdownMenuSeparator /> : null}
+                {downscales.map((item) => {
+                  const key = resolutionKey(item.width, item.height);
+                  return (
+                    <DropdownMenuRadioItem
+                      key={key}
+                      value={key}
+                      className="items-start py-1.5"
+                      onSelect={() => setScaleKey(key)}
+                    >
+                      <ResolutionChoice
+                        title={item.label}
+                        pixels={formatPixels(item.width, item.height)}
+                        bytes={estimateFor(item.width, item.height)}
+                      />
+                    </DropdownMenuRadioItem>
+                  );
+                })}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {activeScaleKey !== ORIGINAL_SCALE ? (
+            <p className="text-xs text-muted-foreground">
+              Die Datei wird herunterskaliert.
+            </p>
+          ) : null}
+        </div>
         <ButtonGroup aria-label="Clip speichern">
           <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
             Abbrechen
