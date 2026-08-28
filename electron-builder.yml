@@ -1,0 +1,47 @@
+appId: com.easyclip.app
+productName: EasyClip
+copyright: Copyright © Easy Clip
+asar: true
+npmRebuild: false
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - "!src/**/*"
+  - "!scripts/**/*"
+  - "!logs/**/*"
+  - "!**/.vscode/*"
+  - "!.cursor/**/*"
+  - "!electron.vite.config.ts"
+  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+  - "!README.md"
+  - "!resources/ffmpeg/**"
+  - "!node_modules/ffmpeg-static/**"
+  - "!node_modules/ffprobe-static/**"
+extraResources:
+  - from: resources/ffmpeg
+    to: ffmpeg
+    filter:
+      - "*.exe"
+  - from: resources/logo.png
+    to: logo.png
+win:
+  icon: resources/logo.png
+  executableName: EasyClip
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-Setup-${version}.${ext}
+  shortcutName: Easy Clip
+  uninstallDisplayName: Easy Clip
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+portable:
+  artifactName: ${productName}-Portable-${version}.${ext}

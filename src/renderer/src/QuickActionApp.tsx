@@ -1,0 +1,276 @@
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Command,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+  CommandShortcut,
+} from "@/components/ui/command";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import type { AppConfigDto, ClipPreset, ObsStatus } from "@shared/ipc";
+import { formatDuration } from "@/format";
+import {
+  ClockIcon,
+  TriangleAlertIcon,
+  TypeIcon,
+  UnplugIcon,
+} from "lucide-react";
+import { getClipAvailability } from "./components/ClipActions";
+import logoUrl from "../../../resources/logo.svg";
+
+export function isQuickActionRoute(): boolean {
+  return window.location.hash.replace(/^#/, "") === "quick";
+}
+
+function presetValue(preset: ClipPreset): string {
+  return String(preset.seconds);
+}
+
+export function QuickActionApp() {
+  const [config, setConfig] = useState<AppConfigDto | null>(null);
+  const [obsStatus, setObsStatus] = useState<ObsStatus | null>(null);
+  const [title, setTitle] = useState("");
+  const [selected, setSelected] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  const reload = useCallback(async () => {
+    const [nextConfig, nextStatus] = await Promise.all([
+      window.api.getConfig(),
+      window.api.getObsStatus(),
+    ]);
+    setConfig(nextConfig);
+    setObsStatus(nextStatus);
+  }, []);
+
+  const focusTitle = useCallback(() => {
+    setTitle("");
+    requestAnimationFrame(() => {
+      titleRef.current?.focus();
+      titleRef.current?.select();
+    });
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.add("quick-action");
+    return () => {
+      document.documentElement.classList.remove("quick-action");
+    };
+  }, []);
+
+  useEffect(() => {
+    void reload();
+    focusTitle();
+    const unsubs = [
+      window.api.onObsStatus(setObsStatus),
+      window.api.onQuickActionOpened(() => {
+        void reload();
+        focusTitle();
+      }),
+    ];
+    return () => {
+      for (const unsub of unsubs) unsub();
+    };
+  }, [focusTitle, reload]);
+
+  const presets = config?.CLIP_PRESETS ?? [];
+  const { connected, replayOff, sceneMismatch, canClip } = getClipAvailability(
+    obsStatus,
+    false,
+    config?.OBS_SCENE,
+  );
+  const replayMax = obsStatus?.replayMaxSeconds ?? null;
+
+  const isPresetEnabled = useCallback(
+    (seconds: number): boolean => {
+      const overBuffer = replayMax != null && seconds > replayMax;
+      return canClip && !overBuffer;
+    },
+    [canClip, replayMax],
+  );
+
+  const enabledPresets = presets.filter((preset) =>
+    isPresetEnabled(preset.seconds),
+  );
+
+  useEffect(() => {
+    const current = enabledPresets.find((preset) => presetValue(preset) === selected);
+    if (current) return;
+    setSelected(enabledPresets[0] ? presetValue(enabledPresets[0]) : "");
+  }, [enabledPresets, selected]);
+
+  const selectPreset = useCallback(
+    (seconds: number) => {
+      const name = title.trim();
+      void window.api.selectQuickAction(seconds, name || undefined);
+    },
+    [title],
+  );
+
+  const saveSelected = useCallback((): void => {
+    const preset = enabledPresets.find((item) => presetValue(item) === selected);
+    if (!preset) return;
+    selectPreset(preset.seconds);
+  }, [enabledPresets, selectPreset, selected]);
+
+  const moveSelection = useCallback(
+    (direction: 1 | -1): void => {
+      if (enabledPresets.length === 0) return;
+      const index = enabledPresets.findIndex(
+        (preset) => presetValue(preset) === selected,
+      );
+      const from = index < 0 ? 0 : index;
+      const next =
+        enabledPresets[
+        (from + direction + enabledPresets.length) % enabledPresets.length
+        ];
+      if (next) setSelected(presetValue(next));
+    },
+    [enabledPresets, selected],
+  );
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        void window.api.closeQuickAction();
+        return;
+      }
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const index = Number(event.key) - 1;
+      if (!Number.isInteger(index) || index < 0 || index >= presets.length) {
+        return;
+      }
+      const preset = presets[index];
+      if (!preset) return;
+      if (!isPresetEnabled(preset.seconds)) return;
+      event.preventDefault();
+      selectPreset(preset.seconds);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [isPresetEnabled, presets, selectPreset]);
+
+  function onTitleKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      saveSelected();
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveSelection(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveSelection(-1);
+    }
+  }
+
+  return (
+    <div className="flex h-full items-start justify-center p-2">
+      <Card size="sm" className="w-full shadow-lg">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2">
+            <img src={logoUrl} alt="" className="size-6 rounded-md" />
+            Clip speichern
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 px-0 pb-2">
+          <div className="flex flex-col gap-2 px-(--card-spacing)">
+            {replayOff ? (
+              <Alert>
+                <TriangleAlertIcon />
+                <AlertTitle>Wiederholungspuffer ist aus</AlertTitle>
+                <AlertDescription>
+                  Starte ihn in OBS, dann kannst du clippen.
+                </AlertDescription>
+              </Alert>
+            ) : sceneMismatch ? (
+              <Alert>
+                <TriangleAlertIcon />
+                <AlertTitle>Falsche OBS-Szene</AlertTitle>
+                <AlertDescription>
+                  Clips nutzen „{config?.OBS_SCENE?.trim()}“. Starte OBS über Easy
+                  Clip, damit der Puffer diese Szene aufzeichnet.
+                </AlertDescription>
+              </Alert>
+            ) : !connected ? (
+              <Alert variant="error" className="items-center *:[svg]:row-span-1 *:[svg]:translate-y-0">
+                <UnplugIcon />
+                <AlertTitle>OBS ist nicht verbunden</AlertTitle>
+              </Alert>
+            ) : null}
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="quick-clip-title" className="sr-only">
+                  Titel
+                </FieldLabel>
+                <InputGroup>
+                  <InputGroupAddon>
+                    <TypeIcon />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    ref={titleRef}
+                    id="quick-clip-title"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Optional"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onKeyDown={onTitleKeyDown}
+                  />
+                </InputGroup>
+              </Field>
+            </FieldGroup>
+          </div>
+          <Command
+            loop
+            shouldFilter={false}
+            value={selected}
+            onValueChange={setSelected}
+          >
+            <CommandList>
+              <CommandGroup>
+                {presets.map((preset, index) => {
+                  const disabled = !isPresetEnabled(preset.seconds);
+                  return (
+                    <CommandItem
+                      key={preset.seconds}
+                      value={presetValue(preset)}
+                      disabled={disabled}
+                      onSelect={() => {
+                        if (disabled) return;
+                        selectPreset(preset.seconds);
+                      }}
+                    >
+                      <ClockIcon />
+                      Letzte {formatDuration(preset.seconds)}
+                      <CommandShortcut>{index + 1}</CommandShortcut>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

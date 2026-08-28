@@ -1,3 +1,7 @@
 node_modules
 .env
 logs/*.log
+out
+dist
+resources/ffmpeg
+*.tsbuildinfo
