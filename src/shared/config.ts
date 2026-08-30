@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import * as z from "zod";
-import { DEFAULT_USER_CONFIG, MAX_CLIP_PRESETS } from "./app.config.js";
+import {
+  DEFAULT_USER_CONFIG,
+  MAX_CLIP_PRESETS,
+  MAX_OBS_REPLAY_SECONDS,
+  MIN_OBS_REPLAY_SECONDS,
+} from "./app.config.js";
 import { normalizeHotkey } from "./hotkeys.js";
 import { normalizeClipPresets } from "./ipc.js";
 import { ensureDir, getAppDataDir } from "./paths.js";
@@ -10,6 +15,17 @@ export const ConfigSchema = z.object({
   OBS_URL: z.url(),
   OBS_PASSWORD: z.string().min(1),
   OBS_SCENE: z.string().default(""),
+  OBS_EXE_PATH: z.string().default(""),
+  OBS_REPLAY_SECONDS: z.preprocess(
+    (value) => (value == null || value === "" || value === 0 ? null : value),
+    z
+      .number()
+      .int()
+      .min(MIN_OBS_REPLAY_SECONDS)
+      .max(MAX_OBS_REPLAY_SECONDS)
+      .nullable()
+      .default(null),
+  ),
   CLIP_OUTPUT_DIR: z.string().min(1),
   AUTOSTART: z.boolean().default(false),
   QUICK_ACTION_HOTKEY: z.preprocess(

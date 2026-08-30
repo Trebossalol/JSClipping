@@ -29,7 +29,7 @@ import {
   RotateCcwIcon,
   Trash2Icon,
 } from "lucide-react";
-import { MAX_CLIP_PRESETS } from "@shared/app.config";
+import { APP_NAME, MAX_CLIP_PRESETS } from "@shared/app.config";
 import type { ClipPreset } from "@shared/ipc";
 import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
@@ -42,12 +42,14 @@ import {
   presetRangeError,
   type PresetDraft,
 } from "./presets";
+import { Alert, AlertDescription } from "../ui/alert";
 
 interface PresetsSectionProps {
   clipPresets: PresetDraft[];
   maxSeconds: number | null;
   quickActionHotkey: string | null;
   onQuickActionHotkeyChange: (hotkey: string | null) => void;
+  onGoToObsSettings: () => void;
   onUpdate: (id: number, field: "minutes" | "seconds", value: string) => void;
   onUpdateHotkey: (id: number, hotkey: string | null) => void;
   onMove: (index: number, direction: -1 | 1) => void;
@@ -61,6 +63,7 @@ export function PresetsSection({
   maxSeconds,
   quickActionHotkey,
   onQuickActionHotkeyChange,
+  onGoToObsSettings,
   onUpdate,
   onUpdateHotkey,
   onMove,
@@ -87,21 +90,15 @@ export function PresetsSection({
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
           <ClockIcon className="size-4" />
-          Clip-Presets
+          Presets
         </CardTitle>
-        <CardDescription>
-          Längen für die Buttons und ein Tastenkürzel für das Schnellmenü
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="quick-action-hotkey">Schnellmenü</FieldLabel>
             <FieldDescription>
-              Ein Tastenkürzel öffnet ein kleines Menü im Vordergrund. Dort
-              kannst du direkt einen Titel vergeben und das Preset mit der Maus,
-              den Pfeiltasten oder 1–6 wählen. Esc oder ein Klick daneben
-              schließt es.
+             Dieses Tastenkürzel öffnet ein kleines Menü, in dem du direkt einen Clip-Titel vergeben kannst und aus deinen Clip-Presets auswählen kannst.
             </FieldDescription>
             <div className="flex flex-wrap items-center gap-2.5">
               <HotkeyInput
@@ -121,12 +118,30 @@ export function PresetsSection({
           <Field>
             <FieldLabel>Presets</FieldLabel>
             <FieldDescription>
-              Länge für die Buttons oben in der App. Optional zusätzlich ein
-              eigenes Tastenkürzel pro Preset.
+              Die Presets werden oben in {APP_NAME} und im Schnellmenü angezeigt.
               {maxSeconds != null
-                ? ` Maximal ${formatDuration(maxSeconds)} laut OBS-Wiederholungspuffer.`
+                ? ` Maximale Clip-Länge: ${formatDuration(maxSeconds)}.`
                 : " Die Obergrenze kommt von der maximalen Wiederholungszeit in OBS, sobald verbunden."}
             </FieldDescription>
+            {maxSeconds != null ? (
+              <Alert variant={"info"}>
+                <AlertDescription>
+                  Die maximale Clip-Länge beträgt aktuell {formatDuration(maxSeconds)}.{" "}
+                  <br />
+                  Um die maximale Clip-Länge zu erhöhen, ändere diese in den{" "}
+                  <a
+                    href="#obs"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onGoToObsSettings();
+                    }}
+                  >
+                    OBS-Einstellungen
+                  </a>
+                  .
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <div className="flex flex-col gap-3">
               {clipPresets.map((draft, index) => {
                 const total = parseDurationParts(
@@ -269,11 +284,11 @@ export function PresetsSection({
               <Button
                 type="button"
                 size="sm"
-                variant="ghost"
+                variant="destructive"
                 onClick={() => onReset(defaultPresetsForMax(maxSeconds))}
               >
                 <RotateCcwIcon data-icon="inline-start" />
-                Presets zurücksetzen
+                Auf Standard zurücksetzen
               </Button>
             </div>
           </Field>

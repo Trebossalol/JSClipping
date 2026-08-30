@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 
 export const SETTINGS_SECTIONS = [
-  { id: "obs", title: "OBS Verbindung" },
+  { id: "obs", title: "OBS" },
   { id: "storage", title: "Speicher" },
   { id: "presets", title: "Presets" },
   { id: "autostart", title: "Autostart" },

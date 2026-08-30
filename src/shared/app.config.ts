@@ -18,12 +18,19 @@ export const MIN_CLIP_PRESET_SECONDS = 5;
 export const MAX_CLIP_PRESETS = 6;
 export const DEFAULT_CLIP_PRESETS = [30, 60, 300, 600] as const;
 
+/** OBS Replay Buffer "Maximum Replay Time" (`RecRBTime`). */
+export const MIN_OBS_REPLAY_SECONDS = 5;
+export const MAX_OBS_REPLAY_SECONDS = 7200;
+
 export const MIN_CUT_RANGE_SECONDS = 0.2;
 
 export const DEFAULT_USER_CONFIG = {
   OBS_URL: "ws://localhost:4455",
   OBS_PASSWORD: "CHANGE_ME",
   OBS_SCENE: "",
+  OBS_REPLAY_SECONDS: null as number | null,
+  /** Empty = auto-detect `obs64.exe` under Program Files. */
+  OBS_EXE_PATH: "",
   CLIP_OUTPUT_DIR: "C:\\Clips",
   AUTOSTART: false,
   CLIP_PRESETS: DEFAULT_CLIP_PRESETS.map((seconds) => ({

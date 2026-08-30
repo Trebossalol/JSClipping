@@ -1,4 +1,9 @@
-import { getObsReplayMaxSeconds } from "../../shared/obs.js";
+import {
+  configuredReplaySeconds,
+  getObsReplayMaxSeconds,
+  setObsReplayMaxSeconds,
+} from "../../shared/obs.js";
+import { getConfig } from "../session.js";
 import { sendObsStatus } from "./status.js";
 import { obsState } from "./state.js";
 
@@ -62,4 +67,24 @@ export async function restartReplayBufferBestEffort(): Promise<void> {
     // Buffer may already be off.
   }
   await ensureReplayBufferStarted();
+}
+
+/** Push Easy Clip's replay duration to OBS and restart the buffer if it changed. */
+export async function applyConfiguredReplayMaxSeconds(): Promise<void> {
+  const wanted = configuredReplaySeconds(getConfig().OBS_REPLAY_SECONDS);
+  if (!wanted || !obsState.connected) return;
+  try {
+    const current = await getObsReplayMaxSeconds(obsState.socket);
+    if (current === wanted) {
+      obsState.replayMaxSeconds = current;
+      return;
+    }
+    await setObsReplayMaxSeconds(obsState.socket, wanted);
+    await restartReplayBufferBestEffort();
+    const next = await getObsReplayMaxSeconds(obsState.socket);
+    obsState.replayMaxSeconds = next ?? wanted;
+    sendObsStatus();
+  } catch {
+    // Profile writes can fail if OBS settings are locked.
+  }
 }

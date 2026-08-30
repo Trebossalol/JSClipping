@@ -42,7 +42,7 @@ export async function applyClipScene(): Promise<
     return {
       ok: false,
       switched: false,
-      error: `Die OBS-Szene „${scene}“ wurde nicht gefunden. Wähle sie unter OBS Verbindung.`,
+      error: `Die OBS-Szene „${scene}“ wurde nicht gefunden. Wähle sie unter OBS.`,
     };
   }
 }

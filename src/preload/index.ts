@@ -20,6 +20,7 @@ const api: ElectronApi = {
   saveConfig: (config: AppConfigDto) =>
     ipcRenderer.invoke(IpcChannels.saveConfig, config),
   pickOutputDir: () => ipcRenderer.invoke(IpcChannels.pickOutputDir),
+  pickObsExe: () => ipcRenderer.invoke(IpcChannels.pickObsExe),
   getObsStatus: () => ipcRenderer.invoke(IpcChannels.getObsStatus),
   getObsScenes: (): Promise<ObsScenesResult> =>
     ipcRenderer.invoke(IpcChannels.getObsScenes),
@@ -110,6 +111,7 @@ const api: ElectronApi = {
     ipcRenderer.invoke(IpcChannels.selectQuickAction, seconds, title),
   openExternal: (url: string) =>
     ipcRenderer.invoke(IpcChannels.openExternal, url),
+  isPackaged: () => ipcRenderer.invoke(IpcChannels.isPackaged),
 };
 
 contextBridge.exposeInMainWorld("api", api);

@@ -55,6 +55,10 @@ export interface AppConfigDto {
   OBS_PASSWORD: string;
   /** Empty = do not force a scene; OBS keeps its current program scene. */
   OBS_SCENE: string;
+  /** Desired OBS Replay Buffer duration in seconds; `null` = do not override OBS. */
+  OBS_REPLAY_SECONDS: number | null;
+  /** Full path to `obs64.exe`; empty = auto-detect under Program Files. */
+  OBS_EXE_PATH: string;
   CLIP_OUTPUT_DIR: string;
   AUTOSTART: boolean;
   CLIP_PRESETS: ClipPreset[];
@@ -116,6 +120,7 @@ export const IpcChannels = {
   getConfig: "config:get",
   saveConfig: "config:save",
   pickOutputDir: "config:pick-output-dir",
+  pickObsExe: "config:pick-obs-exe",
   getObsStatus: "obs:get-status",
   obsStatusChanged: "obs:status-changed",
   getObsScenes: "obs:get-scenes",
@@ -139,6 +144,7 @@ export const IpcChannels = {
   closeQuickAction: "quick-action:close",
   selectQuickAction: "quick-action:select",
   openExternal: "shell:open-external",
+  isPackaged: "app:is-packaged",
 } as const;
 
 export type CreateClipResult =
@@ -171,6 +177,7 @@ export interface ElectronApi {
   getConfig(): Promise<AppConfigDto>;
   saveConfig(config: AppConfigDto): Promise<AppConfigDto>;
   pickOutputDir(): Promise<string | null>;
+  pickObsExe(): Promise<string | null>;
   getObsStatus(): Promise<ObsStatus>;
   onObsStatus(callback: (status: ObsStatus) => void): () => void;
   getObsScenes(): Promise<ObsScenesResult>;
@@ -200,6 +207,7 @@ export interface ElectronApi {
   closeQuickAction(): Promise<void>;
   selectQuickAction(seconds: number, title?: string): Promise<void>;
   openExternal(url: string): Promise<{ ok: boolean; error?: string }>;
+  isPackaged(): Promise<boolean>;
 }
 
 declare global {

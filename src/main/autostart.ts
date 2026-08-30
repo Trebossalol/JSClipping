@@ -71,6 +71,11 @@ export function startedAtLogin(): boolean {
   }
 }
 
+/** Login item + OBS launch on start: packaged Windows builds only. */
+export function shouldRunAutostart(enabled: boolean): boolean {
+  return enabled && process.platform === "win32" && isPackagedApp();
+}
+
 /**
  * Register or remove Easy Clip from Windows logon.
  * No-op on non-Windows. Unpackaged runs only clean up leftover dest launchers.

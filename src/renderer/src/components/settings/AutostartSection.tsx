@@ -20,11 +20,14 @@ import { InfoIcon, PowerIcon } from "lucide-react";
 interface AutostartSectionProps {
   autostart: boolean;
   onAutostartChange: (value: boolean) => void;
+  /** `null` while the packaged check is still loading. */
+  available: boolean | null;
 }
 
 export function AutostartSection({
   autostart,
   onAutostartChange,
+  available,
 }: AutostartSectionProps) {
   return (
     <Card>
@@ -39,28 +42,35 @@ export function AutostartSection({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <Alert variant="info">
-          <InfoIcon />
-          <AlertTitle>Bald verfügbar</AlertTitle>
-          <AlertDescription>
-            Autostart wird in einem zukünftigen Update verfügbar sein.
-          </AlertDescription>
-        </Alert>
+        {available === false ? (
+          <Alert variant="info">
+            <InfoIcon />
+            <AlertTitle>Nur in der installierten App</AlertTitle>
+            <AlertDescription>
+              Autostart (Windows-Anmeldung und OBS) funktioniert nur in der
+              installierten Version, nicht während der Entwicklung.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <FieldGroup>
-          <Field orientation="horizontal" data-disabled="true">
+          <Field
+            orientation="horizontal"
+            data-disabled={available === true ? undefined : "true"}
+          >
             <FieldContent>
               <FieldLabel htmlFor="autostart">
                 Automatischer Start
               </FieldLabel>
               <FieldDescription>
-                {APP_NAME} und OBS werden automatisch beim Windows Start ausgeführt.
+                {APP_NAME} und OBS werden automatisch beim Windows-Start
+                ausgeführt.
               </FieldDescription>
             </FieldContent>
             <Switch
               id="autostart"
               checked={autostart}
               onCheckedChange={onAutostartChange}
-              disabled
+              disabled={available !== true}
             />
           </Field>
         </FieldGroup>
