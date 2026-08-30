@@ -70,7 +70,13 @@ Easy Clip saves the buffer — it does not invent footage that OBS has not been 
 
 You can start OBS from Easy Clip: click the status pill in the top bar (**OBS starten**). That launches OBS, switches to your clip scene if you set one, applies the buffer duration, and starts the Replay Buffer.
 
-### 4. Optional: clip scene
+### 4. Optional: Autostart
+
+In the **installed** app, open **Einstellungen → Autostart** and turn on **Automatischer Start**. Easy Clip then starts with Windows (in the tray) and starts OBS with the Replay Buffer.
+
+This does nothing when you run from source (`npm run dest`).
+
+### 5. Optional: clip scene
 
 If you have a dedicated OBS scene for clips, pick it under **Einstellungen → OBS → Aufnahmeszene**. Easy Clip will use that scene when it starts OBS or when you save the setting. Leave it empty to keep whatever scene OBS is already on.
 
@@ -161,7 +167,7 @@ New video files dropped into the output folder (`mp4`, `mkv`, `mov`, `webm`, `m4
 | **OBS** | WebSocket server, optional `obs64.exe` path, clip scene, and Replay Buffer duration |
 | **Speicher** | Output folder and how much space clips use |
 | **Presets** | Clip lengths, Quick Menu shortcut, per-length hotkeys |
-| **Autostart** | Not available yet — coming in a later update |
+| **Autostart** | Start Easy Clip and OBS with the Replay Buffer at Windows logon. Only works in the installed (packaged) app. |
 | **Über** | Author and GitHub link |
 
 ---
@@ -177,6 +183,7 @@ New video files dropped into the output folder (`mp4`, `mkv`, `mov`, `webm`, `m4
 | Quick Menu / hotkey does nothing | Easy Clip must be running (tray is enough). The shortcut needs Ctrl, Alt, or Windows plus a key, and must not already be used by Windows or another app. |
 | Logitech button does nothing | Confirm Logi Options+ sends the same shortcut as **Schnellmenü**, and that Easy Clip is in the tray. |
 | OBS will not start from the app | Easy Clip looks for `obs64.exe` under `C:\Program Files\obs-studio\…`. If yours is elsewhere, set **OBS-Programmdatei** under **Einstellungen → OBS**. |
+| Autostart switch is disabled | Autostart only works in the installed app. `npm run dest` never registers a Windows login item. |
 | Clips land in the wrong place | Easy Clip’s output folder and OBS’s recording path must be the same. |
 
 Logs (if you need them): `%APPDATA%\EasyClip\logs`.

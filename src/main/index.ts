@@ -14,7 +14,7 @@ import { app, BrowserWindow, Menu } from "electron";
 import { APP_ID, APP_NAME, APP_USER_MODEL_ID } from "../shared/app.config.js";
 import { scanAndImportExisting } from "../shared/clips/index.js";
 import { parseClipSecondsArg } from "../shared/paths.js";
-import { setAppAutostartEnabled } from "./autostart.js";
+import { setAppAutostartEnabled, shouldRunAutostart } from "./autostart.js";
 import {
   getPendingClipSeconds,
   isAppReadyForClip,
@@ -132,11 +132,11 @@ app.whenReady().then(async () => {
   sendClipsChanged();
   await refreshObsProcessRunning();
   startObsProcessPoll();
-  if (config.AUTOSTART && !obsState.processRunning) {
+  if (shouldRunAutostart(config.AUTOSTART) && !obsState.processRunning) {
     await startObsClipMode();
   }
   await connectObs();
-  if (config.AUTOSTART) {
+  if (shouldRunAutostart(config.AUTOSTART)) {
     await ensureReplayBufferStarted();
   }
 

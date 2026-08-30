@@ -111,6 +111,7 @@ const api: ElectronApi = {
     ipcRenderer.invoke(IpcChannels.selectQuickAction, seconds, title),
   openExternal: (url: string) =>
     ipcRenderer.invoke(IpcChannels.openExternal, url),
+  isPackaged: () => ipcRenderer.invoke(IpcChannels.isPackaged),
 };
 
 contextBridge.exposeInMainWorld("api", api);

@@ -144,6 +144,7 @@ export const IpcChannels = {
   closeQuickAction: "quick-action:close",
   selectQuickAction: "quick-action:select",
   openExternal: "shell:open-external",
+  isPackaged: "app:is-packaged",
 } as const;
 
 export type CreateClipResult =
@@ -206,6 +207,7 @@ export interface ElectronApi {
   closeQuickAction(): Promise<void>;
   selectQuickAction(seconds: number, title?: string): Promise<void>;
   openExternal(url: string): Promise<{ ok: boolean; error?: string }>;
+  isPackaged(): Promise<boolean>;
 }
 
 declare global {

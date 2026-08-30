@@ -11,8 +11,9 @@ import {
 } from "../shared/clips/index.js";
 import { IpcChannels, type AppConfigDto, type CutRange, type ScaleTarget } from "../shared/ipc.js";
 import { configuredObsScene, configuredReplaySeconds } from "../shared/obs.js";
+import { isPackagedApp } from "../shared/paths.js";
 import { getStorageInfo } from "../shared/storage.js";
-import { setAppAutostartEnabled } from "./autostart.js";
+import { setAppAutostartEnabled, shouldRunAutostart } from "./autostart.js";
 import {
   runCreateClip,
   runCutClip,
@@ -44,6 +45,8 @@ import {
 export function registerIpc(): void {
   ipcMain.handle(IpcChannels.getConfig, (): AppConfigDto => ({ ...getConfig() }));
 
+  ipcMain.handle(IpcChannels.isPackaged, (): boolean => isPackagedApp());
+
   ipcMain.handle(
     IpcChannels.saveConfig,
     async (_event, next: AppConfigDto): Promise<AppConfigDto> => {
@@ -54,6 +57,9 @@ export function registerIpc(): void {
       const prevAutostart = prev.AUTOSTART;
       const prevScene = prev.OBS_SCENE;
       const prevReplay = prev.OBS_REPLAY_SECONDS;
+      if (!isPackagedApp()) {
+        next.AUTOSTART = prev.AUTOSTART;
+      }
       setAppAutostartEnabled(next.AUTOSTART, getAppDataDir());
       const config = persistConfig(next);
       syncPresetHotkeys(true);
@@ -66,7 +72,7 @@ export function registerIpc(): void {
         configuredReplaySeconds(config.OBS_REPLAY_SECONDS) !==
         configuredReplaySeconds(prevReplay);
 
-      if (config.AUTOSTART && !prevAutostart) {
+      if (shouldRunAutostart(config.AUTOSTART) && !prevAutostart) {
         if (!(await isObsProcessRunning())) {
           await startObsClipMode();
         } else {

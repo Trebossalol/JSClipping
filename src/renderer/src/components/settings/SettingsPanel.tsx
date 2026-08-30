@@ -106,8 +106,19 @@ export function SettingsPanel({
     return drafts;
   });
   const [saving, setSaving] = useState(false);
+  const [packaged, setPackaged] = useState<boolean | null>(null);
   const maxSeconds =
     replayMaxSeconds != null && replayMaxSeconds > 0 ? replayMaxSeconds : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.api.isPackaged().then((value) => {
+      if (!cancelled) setPackaged(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setObsUrl(config.OBS_URL);
@@ -274,6 +285,7 @@ export function SettingsPanel({
       }
       next.QUICK_ACTION_HOTKEY = menuHotkey;
     } else if (section === "autostart") {
+      if (packaged !== true) return;
       next.AUTOSTART = autostart;
     } else {
       return;
@@ -368,14 +380,17 @@ export function SettingsPanel({
         <AutostartSection
           autostart={autostart}
           onAutostartChange={setAutostart}
+          available={packaged}
         />
       ) : null}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={saving}>
-          <SaveIcon data-icon="inline-start" />
-          Einstellungen speichern
-        </Button>
-      </div>
+      {section === "autostart" && packaged !== true ? null : (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={saving}>
+            <SaveIcon data-icon="inline-start" />
+            Einstellungen speichern
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
