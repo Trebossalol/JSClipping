@@ -1,4 +1,8 @@
 import type { OBSWebSocket } from "obs-websocket-js";
+import {
+  MAX_OBS_REPLAY_SECONDS,
+  MIN_OBS_REPLAY_SECONDS,
+} from "./app.config.js";
 
 /**
  * `localhost` often resolves to IPv6 `::1` on Windows while OBS listens on
@@ -30,16 +34,31 @@ export function parseObsProfileSeconds(
   return n;
 }
 
-/** OBS "Maximum Replay Time" (`RecRBTime`) in seconds. */
-export async function getObsReplayMaxSeconds(
+export function configuredReplaySeconds(
+  value: number | undefined | null,
+): number | null {
+  if (value == null || !Number.isInteger(value)) return null;
+  if (value < MIN_OBS_REPLAY_SECONDS || value > MAX_OBS_REPLAY_SECONDS) {
+    return null;
+  }
+  return value;
+}
+
+async function obsReplayBufferCategory(
   obs: OBSWebSocket,
-): Promise<number | null> {
+): Promise<"AdvOut" | "SimpleOutput"> {
   const modeRes = await obs.call("GetProfileParameter", {
     parameterCategory: "Output",
     parameterName: "Mode",
   });
-  const category =
-    modeRes.parameterValue === "Advanced" ? "AdvOut" : "SimpleOutput";
+  return modeRes.parameterValue === "Advanced" ? "AdvOut" : "SimpleOutput";
+}
+
+/** OBS "Maximum Replay Time" (`RecRBTime`) in seconds. */
+export async function getObsReplayMaxSeconds(
+  obs: OBSWebSocket,
+): Promise<number | null> {
+  const category = await obsReplayBufferCategory(obs);
   const timeRes = await obs.call("GetProfileParameter", {
     parameterCategory: category,
     parameterName: "RecRBTime",
@@ -48,6 +67,21 @@ export async function getObsReplayMaxSeconds(
     parseObsProfileSeconds(timeRes.parameterValue) ??
     parseObsProfileSeconds(timeRes.defaultParameterValue)
   );
+}
+
+/** Writes Maximum Replay Time to both output modes so a later mode switch stays in sync. */
+export async function setObsReplayMaxSeconds(
+  obs: OBSWebSocket,
+  seconds: number,
+): Promise<void> {
+  const value = String(seconds);
+  for (const category of ["SimpleOutput", "AdvOut"] as const) {
+    await obs.call("SetProfileParameter", {
+      parameterCategory: category,
+      parameterName: "RecRBTime",
+      parameterValue: value,
+    });
+  }
 }
 
 export function configuredObsScene(scene: string | undefined | null): string | null {

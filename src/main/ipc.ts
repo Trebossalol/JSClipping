@@ -10,7 +10,7 @@ import {
   scanAndImportExisting,
 } from "../shared/clips/index.js";
 import { IpcChannels, type AppConfigDto, type CutRange, type ScaleTarget } from "../shared/ipc.js";
-import { configuredObsScene } from "../shared/obs.js";
+import { configuredObsScene, configuredReplaySeconds } from "../shared/obs.js";
 import { getStorageInfo } from "../shared/storage.js";
 import { setAppAutostartEnabled } from "./autostart.js";
 import {
@@ -25,6 +25,7 @@ import {
   connectObs,
   currentObsStatus,
   disconnectObs,
+  applyConfiguredReplayMaxSeconds,
   ensureReplayBufferStarted,
   fetchObsScenes,
   isObsProcessRunning,
@@ -52,22 +53,34 @@ export function registerIpc(): void {
       const prevPass = prev.OBS_PASSWORD;
       const prevAutostart = prev.AUTOSTART;
       const prevScene = prev.OBS_SCENE;
+      const prevReplay = prev.OBS_REPLAY_SECONDS;
       setAppAutostartEnabled(next.AUTOSTART, getAppDataDir());
       const config = persistConfig(next);
       syncPresetHotkeys(true);
+
+      const credsChanged =
+        config.OBS_URL !== prevUrl || config.OBS_PASSWORD !== prevPass;
+      const sceneChanged =
+        configuredObsScene(config.OBS_SCENE) !== configuredObsScene(prevScene);
+      const replayChanged =
+        configuredReplaySeconds(config.OBS_REPLAY_SECONDS) !==
+        configuredReplaySeconds(prevReplay);
 
       if (config.AUTOSTART && !prevAutostart) {
         if (!(await isObsProcessRunning())) {
           await startObsClipMode();
         } else {
           await prepareObsClipScene();
+          await applyConfiguredReplayMaxSeconds();
           await ensureReplayBufferStarted();
         }
-      } else if (
-        obsState.connected &&
-        configuredObsScene(config.OBS_SCENE) !== configuredObsScene(prevScene)
-      ) {
-        await prepareObsClipScene();
+      } else if (credsChanged) {
+        await disconnectObs();
+        await connectObs();
+        if (obsState.connected) await prepareObsClipScene();
+      } else if (obsState.connected) {
+        if (sceneChanged) await prepareObsClipScene();
+        if (replayChanged) await applyConfiguredReplayMaxSeconds();
       }
 
       if (config.CLIP_OUTPUT_DIR !== prevOutput) {
@@ -79,11 +92,6 @@ export function registerIpc(): void {
         sendClipsChanged();
       }
 
-      if (config.OBS_URL !== prevUrl || config.OBS_PASSWORD !== prevPass) {
-        await disconnectObs();
-        await connectObs();
-      }
-
       return { ...config };
     },
   );
@@ -93,6 +101,20 @@ export function registerIpc(): void {
       properties: ["openDirectory", "createDirectory"],
       title: "Clip-Ausgabeordner wählen",
       defaultPath: getConfig().CLIP_OUTPUT_DIR,
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0] ?? null;
+  });
+
+  ipcMain.handle(IpcChannels.pickObsExe, async (): Promise<string | null> => {
+    const configured = getConfig().OBS_EXE_PATH.trim();
+    const result = await dialog.showOpenDialog(getMainWindow()!, {
+      properties: ["openFile"],
+      title: "OBS-Programmdatei wählen",
+      defaultPath:
+        configured ||
+        "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
+      filters: [{ name: "OBS", extensions: ["exe"] }],
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0] ?? null;

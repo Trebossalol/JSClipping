@@ -3,7 +3,11 @@ import { obsWebSocketUrls } from "../../shared/obs.js";
 import { getConfig } from "../session.js";
 import { sleep } from "../util.js";
 import { refreshObsProcessRunning } from "./process.js";
-import { refreshReplayBuffer, refreshReplayMaxSeconds } from "./replay.js";
+import {
+  applyConfiguredReplayMaxSeconds,
+  refreshReplayBuffer,
+  refreshReplayMaxSeconds,
+} from "./replay.js";
 import { refreshProgramScene } from "./scenes.js";
 import { sendObsStatus } from "./status.js";
 import { obsState } from "./state.js";
@@ -162,6 +166,7 @@ export async function connectObs(): Promise<void> {
         obsState.reconnectAttempt = 0;
         await refreshReplayBuffer();
         await refreshReplayMaxSeconds();
+        await applyConfiguredReplayMaxSeconds();
         await refreshProgramScene();
         sendObsStatus();
         return;

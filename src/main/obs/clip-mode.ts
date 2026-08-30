@@ -19,7 +19,11 @@ import {
   refreshObsProcessRunning,
   spawnDetached,
 } from "./process.js";
-import { ensureReplayBufferStarted, refreshReplayMaxSeconds } from "./replay.js";
+import {
+  applyConfiguredReplayMaxSeconds,
+  ensureReplayBufferStarted,
+  refreshReplayMaxSeconds,
+} from "./replay.js";
 import { prepareObsClipScene } from "./scenes.js";
 import { sendObsStatus } from "./status.js";
 import { obsState } from "./state.js";
@@ -43,6 +47,7 @@ export async function startObsClipMode(): Promise<{
     if (connected) {
       const scene = await prepareObsClipScene();
       if (!scene.ok) return scene;
+      await applyConfiguredReplayMaxSeconds();
       await ensureReplayBufferStarted();
       return { ok: true };
     }
@@ -50,11 +55,12 @@ export async function startObsClipMode(): Promise<{
       ok: false,
       error:
         obsState.error ??
-        "OBS läuft bereits, aber die WebSocket-Verbindung ist fehlgeschlagen. Prüfe URL und Passwort unter OBS Verbindung.",
+        "OBS läuft bereits, aber die WebSocket-Verbindung ist fehlgeschlagen. Prüfe URL und Passwort unter OBS.",
     };
   }
 
-  const exe = resolveObsExecutable();
+  const configuredExe = getConfig().OBS_EXE_PATH;
+  const exe = resolveObsExecutable(configuredExe);
   if (exe) {
     try {
       clearObsShutdownSentinel();
@@ -64,6 +70,7 @@ export async function startObsClipMode(): Promise<{
       if (connected) {
         const scene = await prepareObsClipScene();
         if (!scene.ok) return scene;
+        await applyConfiguredReplayMaxSeconds();
         await ensureReplayBufferStarted();
       }
       return { ok: true };
@@ -73,7 +80,7 @@ export async function startObsClipMode(): Promise<{
     }
   }
 
-  if (!isPackagedApp()) {
+  if (!configuredExe.trim() && !isPackagedApp()) {
     const bat = getAutostartBatPath();
     if (bat) {
       try {
@@ -95,7 +102,9 @@ export async function startObsClipMode(): Promise<{
   return {
     ok: false,
     error:
-      "OBS Studio wurde nicht gefunden. Installiere OBS unter dem Standardpfad oder setze die Umgebungsvariable OBS_PATH.",
+      configuredExe.trim()
+        ? `OBS wurde unter „${configuredExe.trim()}“ nicht gefunden. Prüfe den Pfad unter OBS.`
+        : "OBS Studio wurde nicht gefunden. Wähle die Programmdatei unter OBS oder installiere OBS unter dem Standardpfad.",
   };
 }
 

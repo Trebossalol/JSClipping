@@ -20,6 +20,7 @@ const api: ElectronApi = {
   saveConfig: (config: AppConfigDto) =>
     ipcRenderer.invoke(IpcChannels.saveConfig, config),
   pickOutputDir: () => ipcRenderer.invoke(IpcChannels.pickOutputDir),
+  pickObsExe: () => ipcRenderer.invoke(IpcChannels.pickObsExe),
   getObsStatus: () => ipcRenderer.invoke(IpcChannels.getObsStatus),
   getObsScenes: (): Promise<ObsScenesResult> =>
     ipcRenderer.invoke(IpcChannels.getObsScenes),

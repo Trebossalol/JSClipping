@@ -42,7 +42,7 @@ Do this once. After that, start Easy Clip, start OBS (the app can do that for yo
 3. Check **Enable WebSocket server**.
 4. Leave the port at **4455** unless you know you need something else.
 5. Check **Enable authentication**, pick a password, and save.
-6. In Easy Clip, open **Einstellungen → OBS Verbindung**.
+6. In Easy Clip, open **Einstellungen → OBS**.
 7. Paste the same password into **Passwort** and click **Einstellungen speichern**.
 
 The Server URL (`ws://localhost:4455`) is already correct for a normal OBS install.
@@ -65,14 +65,14 @@ Easy Clip saves the buffer — it does not invent footage that OBS has not been 
 2. If you need the Replay Buffer tab, set Output Mode to **Advanced**.
 3. Open **Replay Buffer**.
 4. Enable **Replay Buffer**.
-5. Set **Maximum Replay Time** to at least your longest clip length (for example **600 seconds** if you want 10-minute clips).
-6. Click **Apply** / **OK**.
+5. Set **Maximum Replay Time** in Easy Clip under **Einstellungen → OBS → Aufnahme**, or in OBS itself. Easy Clip writes the value to OBS when you save.
+6. Click **Apply** / **OK** if you changed it in OBS.
 
-You can start OBS from Easy Clip: click the status pill in the top bar (**OBS starten**). That launches OBS, switches to your clip scene if you set one, and starts the Replay Buffer.
+You can start OBS from Easy Clip: click the status pill in the top bar (**OBS starten**). That launches OBS, switches to your clip scene if you set one, applies the buffer duration, and starts the Replay Buffer.
 
 ### 4. Optional: clip scene
 
-If you have a dedicated OBS scene for clips, pick it under **Einstellungen → OBS Verbindung → Aufnahmeszene**. Easy Clip will use that scene when it starts OBS. Leave it empty to keep whatever scene OBS is already on.
+If you have a dedicated OBS scene for clips, pick it under **Einstellungen → OBS → Aufnahmeszene**. Easy Clip will use that scene when it starts OBS or when you save the setting. Leave it empty to keep whatever scene OBS is already on.
 
 ---
 
@@ -158,7 +158,7 @@ New video files dropped into the output folder (`mp4`, `mkv`, `mov`, `webm`, `m4
 
 | Menu | What it does |
 |---|---|
-| **OBS Verbindung** | WebSocket URL, password, optional clip scene |
+| **OBS** | WebSocket server, optional `obs64.exe` path, clip scene, and Replay Buffer duration |
 | **Speicher** | Output folder and how much space clips use |
 | **Presets** | Clip lengths, Quick Menu shortcut, per-length hotkeys |
 | **Autostart** | Not available yet — coming in a later update |
@@ -170,13 +170,13 @@ New video files dropped into the output folder (`mp4`, `mkv`, `mov`, `webm`, `m4
 
 | What you see | What to try |
 |---|---|
-| **OBS getrennt** / cannot connect | OBS is closed, WebSocket is off, or the password/port is wrong. Recheck **Tools → WebSocket Server Settings** and Easy Clip → **OBS Verbindung**. |
+| **OBS getrennt** / cannot connect | OBS is closed, WebSocket is off, or the password/port is wrong. Recheck **Tools → WebSocket Server Settings** and Easy Clip → **OBS**. |
 | **Puffer aus** | Start the Replay Buffer in OBS, or use **OBS starten** from Easy Clip’s status pill. |
-| Preset button greyed out / “longer than the OBS buffer” | Raise **Maximum Replay Time** in OBS, or shorten the preset. |
+| Preset button greyed out / “longer than the OBS buffer” | Raise **Wiederholungspuffer** under **Einstellungen → OBS**, or shorten the preset. |
 | “Wrong OBS scene” | Start OBS from Easy Clip so it switches to your clip scene, or clear the scene setting. |
 | Quick Menu / hotkey does nothing | Easy Clip must be running (tray is enough). The shortcut needs Ctrl, Alt, or Windows plus a key, and must not already be used by Windows or another app. |
 | Logitech button does nothing | Confirm Logi Options+ sends the same shortcut as **Schnellmenü**, and that Easy Clip is in the tray. |
-| OBS will not start from the app | Easy Clip looks for `obs64.exe` under `C:\Program Files\obs-studio\…`. If yours is elsewhere, set a Windows environment variable `OBS_PATH` to the full path of `obs64.exe`. |
+| OBS will not start from the app | Easy Clip looks for `obs64.exe` under `C:\Program Files\obs-studio\…`. If yours is elsewhere, set **OBS-Programmdatei** under **Einstellungen → OBS**. |
 | Clips land in the wrong place | Easy Clip’s output folder and OBS’s recording path must be the same. |
 
 Logs (if you need them): `%APPDATA%\EasyClip\logs`.

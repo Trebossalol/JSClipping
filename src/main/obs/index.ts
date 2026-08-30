@@ -18,6 +18,7 @@ export {
   refreshObsProcessRunning,
 } from "./process.js";
 export {
+  applyConfiguredReplayMaxSeconds,
   ensureReplayBufferStarted,
   refreshReplayMaxSeconds,
 } from "./replay.js";

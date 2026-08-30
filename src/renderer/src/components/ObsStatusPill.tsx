@@ -13,7 +13,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration } from "@/format";
 import type { ObsStatus } from "@shared/ipc";
-import { ChevronDownIcon, PlugIcon, SettingsIcon, UnplugIcon } from "lucide-react";
+import { ChevronDownIcon, PlugIcon, SettingsIcon, StopCircle, StopCircleIcon, UnplugIcon, XCircleIcon } from "lucide-react";
 import { startObsWithAutostart, stopObsProcess } from "./ClipActions";
 import { useTopLoader } from "./TopLoadingBar";
 
@@ -58,7 +58,7 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
       ? replayOff
         ? "Puffer aus"
         : "OBS verbunden"
-      : "OBS getrennt";
+      : "OBS getrennt - klicken zum Starten";
   const title = connecting
     ? undefined
     : connected
@@ -104,17 +104,6 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-60">
-          {replayMaxLabel ? (
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>
-                Puffer max. {replayMaxLabel}
-                <span className="mt-0.5 block font-normal">
-                  Maximale Wiederholungszeit in OBS
-                </span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-            </DropdownMenuGroup>
-          ) : null}
           {!connected && status?.error ? (
             <DropdownMenuGroup>
               <DropdownMenuLabel>
@@ -140,7 +129,7 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
                 disabled={busy}
                 onSelect={() => void onStopObs()}
               >
-                {busy ? <Spinner /> : null}
+                {busy ? <Spinner /> : <XCircleIcon />}
                 OBS beenden
               </DropdownMenuItem>
             ) : null}
@@ -148,7 +137,7 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onGoToSettings}>
             <SettingsIcon />
-            Verbindungseinstellungen
+            OBS-Einstellungen
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

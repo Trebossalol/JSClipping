@@ -299,6 +299,7 @@ export function App() {
                 config={config}
                 replayMaxSeconds={obsStatus?.replayMaxSeconds ?? null}
                 onSave={saveConfig}
+                onGoToObsSettings={() => setView("obs")}
               />
             )}
           </div>

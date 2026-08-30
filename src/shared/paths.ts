@@ -93,12 +93,40 @@ export function getFfprobePath(): string {
   return cachedFfprobe;
 }
 
-export function resolveObsExecutable(): string | null {
-  const fromEnv = process.env.OBS_PATH?.trim();
-  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+function existingFile(filePath: string): string | null {
+  return fs.existsSync(filePath) ? filePath : null;
+}
 
-  const programFiles =
-    process.env.ProgramFiles ?? "C:\\Program Files";
+/** If `value` is a folder, look for the usual OBS binary inside it. */
+export function resolveConfiguredObsExecutable(
+  value: string | undefined | null,
+): string | null {
+  const raw = value?.trim().replace(/^["']|["']$/g, "");
+  if (!raw) return null;
+  if (!fs.existsSync(raw)) return null;
+  if (fs.statSync(raw).isFile()) return raw;
+  const nested = [
+    path.join(raw, "bin", "64bit", "obs64.exe"),
+    path.join(raw, "obs64.exe"),
+    path.join(raw, "obs.exe"),
+  ];
+  for (const candidate of nested) {
+    const found = existingFile(candidate);
+    if (found) return found;
+  }
+  return null;
+}
+
+export function resolveObsExecutable(
+  configuredPath?: string | null,
+): string | null {
+  const configured = configuredPath?.trim().replace(/^["']|["']$/g, "");
+  if (configured) return resolveConfiguredObsExecutable(configured);
+
+  const fromEnv = resolveConfiguredObsExecutable(process.env.OBS_PATH);
+  if (fromEnv) return fromEnv;
+
+  const programFiles = process.env.ProgramFiles ?? "C:\\Program Files";
   const programFilesX86 =
     process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)";
 
@@ -107,7 +135,8 @@ export function resolveObsExecutable(): string | null {
     path.join(programFilesX86, "obs-studio", "bin", "64bit", "obs64.exe"),
   ];
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
+    const found = existingFile(candidate);
+    if (found) return found;
   }
   return null;
 }
