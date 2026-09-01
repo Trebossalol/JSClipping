@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -41,11 +47,14 @@ import {
   HardDriveIcon,
   LayoutGridIcon,
   MonitorIcon,
+  MoreHorizontalIcon,
   PlayIcon,
   ScissorsIcon,
+  TagsIcon,
   Trash2Icon,
 } from "lucide-react";
-import type { ClipRecord } from "@shared/ipc";
+import type { ClipRecord, TagRecord } from "@shared/ipc";
+import { clipTagIds } from "@shared/tags/names";
 import {
   formatBytes,
   formatDate,
@@ -54,6 +63,7 @@ import {
   formatResolution,
 } from "../format";
 import { DeleteClipDialog } from "./DeleteClipDialog";
+import { ClipTagPicker } from "./ClipTagPicker";
 
 const PAGE_SIZE = 12;
 
@@ -97,18 +107,33 @@ function isLast24h(createdAt: string): boolean {
   return Number.isFinite(t) && Date.now() - t <= DAY_MS;
 }
 
-function filterClips(clips: ClipRecord[], filter: ClipFilter): ClipRecord[] {
+const UNTAGGED_FILTER = "untagged";
+
+function filterClips(
+  clips: ClipRecord[],
+  filter: ClipFilter,
+  tagIds: string[],
+  untaggedOnly: boolean,
+): ClipRecord[] {
+  let next = clips;
   if (filter === "untitled") {
-    return clips.filter((c) => !c.namedByUser && !c.missing);
+    next = next.filter((c) => !c.namedByUser && !c.missing);
+  } else if (filter === "last24h") {
+    next = next.filter((c) => isLast24h(c.createdAt));
   }
-  if (filter === "last24h") {
-    return clips.filter((c) => isLast24h(c.createdAt));
+  if (untaggedOnly) {
+    return next.filter((c) => clipTagIds(c).length === 0);
   }
-  return clips;
+  if (tagIds.length > 0) {
+    const wanted = new Set(tagIds);
+    return next.filter((c) => clipTagIds(c).some((id) => wanted.has(id)));
+  }
+  return next;
 }
 
 interface ClipCardProps {
   clip: ClipRecord;
+  tags: TagRecord[];
   selected: boolean;
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
@@ -116,10 +141,13 @@ interface ClipCardProps {
   onReveal: (id: string) => void;
   onDelete: (id: string) => void;
   onCut: (id: string) => void;
+  onSetTags: (id: string, tagIds: string[]) => void | Promise<void>;
+  onCreateTag: (name: string) => Promise<TagRecord | null>;
 }
 
 function ClipCard({
   clip,
+  tags,
   selected,
   onSelect,
   onOpen,
@@ -127,8 +155,12 @@ function ClipCard({
   onReveal,
   onDelete,
   onCut,
+  onSetTags,
+  onCreateTag,
 }: ClipCardProps) {
   const [name, setName] = useState(clip.name);
+  const assignedIds = clipTagIds(clip);
+  const assignedTags = tags.filter((tag) => assignedIds.includes(tag.id));
 
   useEffect(() => {
     setName(clip.name);
@@ -157,151 +189,231 @@ function ClipCard({
   return (
     <Card
       className={cn(
-        "gap-0 py-0",
-        selected && "ring-2 ring-primary",
+        "gap-0 py-0 transition-shadow",
+        selected &&
+          "ring-2 ring-primary shadow-[0_0_24px_color-mix(in_srgb,var(--primary)_28%,transparent)]",
         clip.missing && "opacity-60",
       )}
     >
-      <button
-        type="button"
-        className="relative block w-full overflow-hidden rounded-t-xl text-left"
-        title={clip.missing ? "Datei fehlt" : "Clip öffnen"}
-        onClick={() => {
-          onSelect(clip.id);
-          if (!clip.missing) onOpen(clip.id);
-        }}
-      >
-        {clip.thumbnailPath && !clip.missing ? (
-          <img
-            src={clip.thumbnailPath}
-            alt={clip.name}
-            loading="lazy"
-            className="aspect-video w-full object-cover"
+      <div className="group/thumb relative">
+        <button
+          type="button"
+          className="relative block w-full overflow-hidden rounded-t-xl text-left"
+          title={clip.missing ? "Datei fehlt" : "Clip öffnen"}
+          onClick={() => {
+            onSelect(clip.id);
+            if (!clip.missing) onOpen(clip.id);
+          }}
+        >
+          {clip.thumbnailPath && !clip.missing ? (
+            <img
+              src={clip.thumbnailPath}
+              alt={clip.name}
+              loading="lazy"
+              className="aspect-video w-full object-cover"
+            />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center bg-muted text-muted-foreground">
+              {clip.missing ? (
+                <span className="flex items-center gap-1 text-xs">
+                  <FileXIcon className="size-3.5 opacity-70" />
+                  Datei fehlt
+                </span>
+              ) : (
+                <FilmIcon className="opacity-50" />
+              )}
+            </div>
+          )}
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 via-background/15 to-transparent"
+            aria-hidden
           />
-        ) : (
-          <div className="flex aspect-video w-full items-center justify-center bg-muted text-muted-foreground">
-            {clip.missing ? (
-              <span className="flex items-center gap-1 text-xs">
-                <FileXIcon className="size-3.5" />
-                Datei fehlt
-              </span>
-            ) : (
-              <FilmIcon />
-            )}
-          </div>
-        )}
-        {resolution ? (
-          <div className="absolute left-2 top-2">
-            {pixels && pixels !== resolution ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="secondary">
-                    <MonitorIcon data-icon="inline-start" />
-                    {resolution}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>{pixels}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Badge variant="secondary">
-                <MonitorIcon data-icon="inline-start" />
-                {resolution}
+          {resolution ? (
+            <div className="absolute top-2 left-2 z-10">
+              {pixels && pixels !== resolution ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant="secondary"
+                      className="glass border-white/15 bg-background/40"
+                    >
+                      <MonitorIcon
+                        data-icon="inline-start"
+                        className="opacity-70"
+                      />
+                      {resolution}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>{pixels}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Badge
+                  variant="secondary"
+                  className="glass border-white/15 bg-background/40"
+                >
+                  <MonitorIcon
+                    data-icon="inline-start"
+                    className="opacity-70"
+                  />
+                  {resolution}
+                </Badge>
+              )}
+            </div>
+          ) : null}
+          {!clip.namedByUser && !clip.missing ? (
+            <div className="absolute top-2 right-2 z-10">
+              <Badge className="bg-primary/85 text-primary-foreground">
+                <FilePenIcon data-icon="inline-start" className="opacity-80" />
+                Unbenannt
               </Badge>
-            )}
+            </div>
+          ) : null}
+          <div className="absolute inset-x-2 bottom-2 z-10 flex items-end justify-between gap-1">
+            <Badge
+              variant="secondary"
+              className="glass max-w-[min(100%,11rem)] truncate border-white/15 bg-background/40"
+            >
+              <CalendarIcon data-icon="inline-start" className="opacity-70" />
+              {formatDate(clip.createdAt)}
+            </Badge>
+            <div className="flex min-w-0 flex-wrap justify-end gap-1">
+              {duration ? (
+                <Badge
+                  variant="secondary"
+                  className="glass border-white/15 bg-background/40"
+                >
+                  <ClockIcon data-icon="inline-start" className="opacity-70" />
+                  {duration}
+                </Badge>
+              ) : null}
+              {fileSize ? (
+                <Badge
+                  variant="secondary"
+                  className="glass border-white/15 bg-background/40"
+                >
+                  <HardDriveIcon
+                    data-icon="inline-start"
+                    className="opacity-70"
+                  />
+                  {fileSize}
+                </Badge>
+              ) : null}
+              {clip.missing ? (
+                <Badge variant="destructive">
+                  <FileXIcon data-icon="inline-start" className="opacity-70" />
+                  Fehlt
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+        </button>
+        {!clip.missing ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-2 bg-background/25 opacity-0 transition-opacity group-hover/thumb:pointer-events-auto group-hover/thumb:opacity-100"
+            onClick={() => {
+              onSelect(clip.id);
+              onOpen(clip.id);
+            }}
+          >
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="glass size-10 border-white/15 shadow-lg"
+              aria-label="Öffnen"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(clip.id);
+                onOpen(clip.id);
+              }}
+            >
+              <PlayIcon className="opacity-80" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="glass size-10 border-white/15 shadow-lg"
+              aria-label="Schneiden"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(clip.id);
+                onCut(clip.id);
+              }}
+            >
+              <ScissorsIcon className="opacity-80" />
+            </Button>
           </div>
         ) : null}
-        <div className="absolute inset-x-2 bottom-2 flex items-end justify-between gap-1">
-          <Badge variant="secondary" className="max-w-[min(100%,11rem)] truncate">
-            <CalendarIcon data-icon="inline-start" />
-            {formatDate(clip.createdAt)}
-          </Badge>
-          <div className="flex min-w-0 flex-wrap justify-end gap-1">
-            {duration ? (
-              <Badge variant="secondary">
-                <ClockIcon data-icon="inline-start" />
-                {duration}
-              </Badge>
-            ) : null}
-            {fileSize ? (
-              <Badge variant="secondary">
-                <HardDriveIcon data-icon="inline-start" />
-                {fileSize}
-              </Badge>
-            ) : null}
-            {clip.missing ? (
-              <Badge variant="destructive">
-                <FileXIcon data-icon="inline-start" />
-                Fehlt
-              </Badge>
-            ) : null}
-          </div>
+      </div>
+      <div className="flex flex-col gap-1.5 p-2.5">
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={name}
+            title="Titel bearbeiten (benennt auch die Datei um)"
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={onKeyDown}
+            onFocus={() => onSelect(clip.id)}
+          />
+          <ClipTagPicker
+            assignedIds={assignedIds}
+            tags={tags}
+            onSetTags={(tagIds) => onSetTags(clip.id, tagIds)}
+            onCreateTag={onCreateTag}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                className="shrink-0 text-muted-foreground"
+                aria-label="Weitere Aktionen"
+              >
+                <MoreHorizontalIcon className="opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={!!clip.missing}
+                onSelect={() => onOpen(clip.id)}
+              >
+                <PlayIcon className="opacity-70" />
+                Öffnen
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!!clip.missing}
+                onSelect={() => onCut(clip.id)}
+              >
+                <ScissorsIcon className="opacity-70" />
+                Schneiden
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onReveal(clip.id)}>
+                <FolderOpenIcon className="opacity-70" />
+                Im Ordner anzeigen
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => onDelete(clip.id)}
+              >
+                <Trash2Icon />
+                Löschen
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </button>
-      <div className="flex flex-col gap-2 p-2.5">
-        <Input
-          value={name}
-          title="Titel bearbeiten (benennt auch die Datei um)"
-          onChange={(e) => setName(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={onKeyDown}
-          onFocus={() => onSelect(clip.id)}
-        />
-        <ButtonGroup className="w-full">
-          <ButtonGroup className="w-full">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="flex-1"
-              disabled={!!clip.missing}
-              onClick={() => onOpen(clip.id)}
-            >
-              <PlayIcon data-icon="inline-start" />
-              Öffnen
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="flex-1"
-              disabled={!!clip.missing}
-              onClick={() => onCut(clip.id)}
-            >
-              <ScissorsIcon data-icon="inline-start" />
-              Schneiden
-            </Button>
-          </ButtonGroup>
-          <ButtonGroup>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="outline"
-                  aria-label="Im Ordner anzeigen"
-                  onClick={() => onReveal(clip.id)}
-                >
-                  <FolderOpenIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Im Ordner anzeigen</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="destructive"
-                  aria-label="Löschen"
-                  onClick={() => onDelete(clip.id)}
-                >
-                  <Trash2Icon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Löschen</TooltipContent>
-            </Tooltip>
-          </ButtonGroup>
-        </ButtonGroup>
+        {assignedTags.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {assignedTags.map((tag) => (
+              <Badge key={tag.id} variant="secondary" className="max-w-full">
+                <TagsIcon data-icon="inline-start" className="opacity-70" />
+                <span className="truncate">{tag.name}</span>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </div>
     </Card>
   );
@@ -309,6 +421,7 @@ function ClipCard({
 
 interface RecentClipsProps {
   clips: ClipRecord[];
+  tags: TagRecord[];
   filter: ClipFilter;
   onFilterChange: (filter: ClipFilter) => void;
   selectedId: string | null;
@@ -318,10 +431,13 @@ interface RecentClipsProps {
   onReveal: (id: string) => void;
   onDelete: (id: string) => void | Promise<void>;
   onCut: (id: string) => void;
+  onSetTags: (id: string, tagIds: string[]) => void | Promise<void>;
+  onCreateTag: (name: string) => Promise<TagRecord | null>;
 }
 
 export function RecentClips({
   clips,
+  tags,
   filter,
   onFilterChange,
   selectedId,
@@ -331,20 +447,27 @@ export function RecentClips({
   onReveal,
   onDelete,
   onCut,
+  onSetTags,
+  onCreateTag,
 }: RecentClipsProps) {
   const [page, setPage] = useState(1);
-  const [pageFilter, setPageFilter] = useState(filter);
+  const [pageKey, setPageKey] = useState("");
   const newestId = clips[0]?.id;
   const [pageNewestId, setPageNewestId] = useState(newestId);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
+  const [untaggedOnly, setUntaggedOnly] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const visible = filterClips(clips, filter);
+  const knownTagIds = new Set(tags.map((tag) => tag.id));
+  const activeTagIds = tagFilterIds.filter((id) => knownTagIds.has(id));
+  const visible = filterClips(clips, filter, activeTagIds, untaggedOnly);
+  const filterKey = `${filter}:${untaggedOnly ? UNTAGGED_FILTER : activeTagIds.slice().sort().join(",")}`;
 
   let nextPage = page;
-  if (pageFilter !== filter || pageNewestId !== newestId) {
-    setPageFilter(filter);
+  if (pageKey !== filterKey || pageNewestId !== newestId) {
+    setPageKey(filterKey);
     setPageNewestId(newestId);
     nextPage = 1;
   }
@@ -386,10 +509,10 @@ export function RecentClips({
   }
 
   return (
-    <div ref={sectionRef} className="flex flex-col gap-2.5">
+    <div ref={sectionRef} className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="flex items-center gap-1.5 text-sm font-medium">
-          <FilmIcon className="size-3.5" />
+          <FilmIcon className="size-3.5 opacity-70" />
           Aktuelle Clips
         </p>
         <p className="text-xs text-muted-foreground">
@@ -408,22 +531,50 @@ export function RecentClips({
             }}
           >
             <ToggleGroupItem value="all">
-              <LayoutGridIcon data-icon="inline-start" />
+              <LayoutGridIcon data-icon="inline-start" className="opacity-70" />
               Alle
             </ToggleGroupItem>
             <ToggleGroupItem value="untitled">
-              <FilePenIcon data-icon="inline-start" />
+              <FilePenIcon data-icon="inline-start" className="opacity-70" />
               Unbenannt
             </ToggleGroupItem>
             <ToggleGroupItem value="last24h" title="Nur Clips der letzten 24 Stunden">
-              <ClockIcon data-icon="inline-start" />
+              <ClockIcon data-icon="inline-start" className="opacity-70" />
               24 Std.
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
       </div>
+      {tags.length > 0 ? (
+        <ToggleGroup
+          type="multiple"
+          variant="outline"
+          size="sm"
+          className="flex-wrap"
+          value={untaggedOnly ? [UNTAGGED_FILTER] : activeTagIds}
+          onValueChange={(values) => {
+            if (values.includes(UNTAGGED_FILTER) && !untaggedOnly) {
+              setUntaggedOnly(true);
+              setTagFilterIds([]);
+              return;
+            }
+            setUntaggedOnly(false);
+            setTagFilterIds(values.filter((id) => id !== UNTAGGED_FILTER));
+          }}
+        >
+          <ToggleGroupItem value={UNTAGGED_FILTER} title="Nur Clips ohne Tags">
+            Ohne Tags
+          </ToggleGroupItem>
+          {tags.map((tag) => (
+            <ToggleGroupItem key={tag.id} value={tag.id}>
+              <TagsIcon data-icon="inline-start" className="opacity-70" />
+              {tag.name}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      ) : null}
       {visible.length === 0 ? (
-        <Empty className="border border-dashed">
+        <Empty className="glass border border-dashed border-white/10">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               {clips.length === 0 ? <FilmIcon /> : <FileQuestionIcon />}
@@ -431,16 +582,24 @@ export function RecentClips({
             <EmptyTitle>
               {clips.length === 0
                 ? "Noch keine Clips"
-                : filter === "last24h"
-                  ? "Keine Clips der letzten 24 Stunden"
-                  : "Keine unbenannten Clips"}
+                : untaggedOnly
+                  ? "Keine Clips ohne Tags"
+                  : activeTagIds.length > 0
+                    ? "Keine Clips mit diesen Tags"
+                    : filter === "last24h"
+                      ? "Keine Clips der letzten 24 Stunden"
+                      : "Keine unbenannten Clips"}
             </EmptyTitle>
             <EmptyDescription>
               {clips.length === 0
                 ? "Speichere einen Replay aus OBS oder drücke eine Clip-Schaltfläche."
-                : filter === "last24h"
-                  ? "Es gibt keine Clips aus den letzten 24 Stunden."
-                  : "Jeder Clip in der Bibliothek hat einen Titel."}
+                : untaggedOnly
+                  ? "Jeder Clip in der Bibliothek hat mindestens ein Tag."
+                  : activeTagIds.length > 0
+                    ? "Kein Clip hat eines der ausgewählten Tags."
+                    : filter === "last24h"
+                      ? "Es gibt keine Clips aus den letzten 24 Stunden."
+                      : "Jeder Clip in der Bibliothek hat einen Titel."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -451,6 +610,7 @@ export function RecentClips({
               <ClipCard
                 key={clip.id}
                 clip={clip}
+                tags={tags}
                 selected={clip.id === selectedId}
                 onSelect={onSelect}
                 onOpen={onOpen}
@@ -458,6 +618,8 @@ export function RecentClips({
                 onReveal={onReveal}
                 onDelete={(id) => setPendingDeleteId(id)}
                 onCut={onCut}
+                onSetTags={onSetTags}
+                onCreateTag={onCreateTag}
               />
             ))}
           </div>

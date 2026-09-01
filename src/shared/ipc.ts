@@ -61,6 +61,7 @@ export interface AppConfigDto {
   OBS_EXE_PATH: string;
   CLIP_OUTPUT_DIR: string;
   AUTOSTART: boolean;
+  CHECK_FOR_UPDATES: boolean;
   CLIP_PRESETS: ClipPreset[];
   QUICK_ACTION_HOTKEY: string | null;
 }
@@ -96,6 +97,14 @@ export interface ClipRecord {
   missing?: boolean;
   /** True once the user has set a custom title in the app. */
   namedByUser?: boolean;
+  /** Tag catalog ids assigned to this clip. Missing on legacy rows. */
+  tagIds?: string[];
+}
+
+export interface TagRecord {
+  id: string;
+  name: string;
+  createdAt: string;
 }
 
 export interface CutRange {
@@ -135,6 +144,12 @@ export const IpcChannels = {
   cutterOpenClip: "cutter:open-clip",
   openClip: "clips:open",
   revealClip: "clips:reveal",
+  setClipTags: "clips:set-tags",
+  listTags: "tags:list",
+  createTag: "tags:create",
+  renameTag: "tags:rename",
+  deleteTag: "tags:delete",
+  tagsChanged: "tags:changed",
   getStorage: "storage:get",
   startObs: "obs:start",
   stopObs: "obs:stop",
@@ -145,6 +160,9 @@ export const IpcChannels = {
   selectQuickAction: "quick-action:select",
   openExternal: "shell:open-external",
   isPackaged: "app:is-packaged",
+  getVersion: "app:get-version",
+  checkForUpdates: "app:check-for-updates",
+  updateAvailable: "app:update-available",
 } as const;
 
 export type CreateClipResult =
@@ -153,6 +171,14 @@ export type CreateClipResult =
 
 export type RenameClipResult =
   | { ok: true; clip: ClipRecord }
+  | { ok: false; error: string };
+
+export type SetClipTagsResult =
+  | { ok: true; clip: ClipRecord }
+  | { ok: false; error: string };
+
+export type TagResult =
+  | { ok: true; tag: TagRecord }
   | { ok: false; error: string };
 
 export type CutClipResult =
@@ -173,6 +199,15 @@ export interface HotkeyClipPayload {
   title?: string;
 }
 
+export interface AppUpdateInfo {
+  version: string;
+  url: string;
+}
+
+export type CheckForUpdatesResult =
+  | { ok: true; update: AppUpdateInfo | null }
+  | { ok: false; error: string };
+
 export interface ElectronApi {
   getConfig(): Promise<AppConfigDto>;
   saveConfig(config: AppConfigDto): Promise<AppConfigDto>;
@@ -185,7 +220,13 @@ export interface ElectronApi {
   listClips(): Promise<ClipRecord[]>;
   onClipsChanged(callback: (clips: ClipRecord[]) => void): () => void;
   renameClip(id: string, name: string): Promise<RenameClipResult>;
+  setClipTags(id: string, tagIds: string[]): Promise<SetClipTagsResult>;
   deleteClip(id: string): Promise<{ ok: boolean; error?: string }>;
+  listTags(): Promise<TagRecord[]>;
+  createTag(name: string): Promise<TagResult>;
+  renameTag(id: string, name: string): Promise<TagResult>;
+  deleteTag(id: string): Promise<{ ok: boolean; error?: string }>;
+  onTagsChanged(callback: (tags: TagRecord[]) => void): () => void;
   cutClip(
     id: string,
     ranges: CutRange[],
@@ -208,6 +249,9 @@ export interface ElectronApi {
   selectQuickAction(seconds: number, title?: string): Promise<void>;
   openExternal(url: string): Promise<{ ok: boolean; error?: string }>;
   isPackaged(): Promise<boolean>;
+  getVersion(): Promise<string>;
+  checkForUpdates(): Promise<CheckForUpdatesResult>;
+  onUpdateAvailable(callback: (update: AppUpdateInfo) => void): () => void;
 }
 
 declare global {

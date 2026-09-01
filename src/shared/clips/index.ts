@@ -18,4 +18,5 @@ export {
   deleteClip,
   removeClipByFilePath,
   renameClip,
+  setClipTags,
 } from "./operations.js";

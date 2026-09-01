@@ -6,7 +6,7 @@ import {
   MAX_OBS_REPLAY_SECONDS,
   MIN_OBS_REPLAY_SECONDS,
 } from "@shared/app.config";
-import type { AppConfigDto, ClipPreset } from "@shared/ipc";
+import type { AppConfigDto, ClipPreset, ClipRecord, TagRecord } from "@shared/ipc";
 import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
 import { SaveIcon } from "lucide-react";
@@ -16,6 +16,7 @@ import { AutostartSection } from "./AutostartSection";
 import { ObsSection } from "./ObsSection";
 import { PresetsSection } from "./PresetsSection";
 import { StorageSection } from "./StorageSection";
+import { TagsSection } from "./TagsSection";
 import {
   collectClipPresets,
   draftsFromPresets,
@@ -71,6 +72,8 @@ interface SettingsPanelProps {
   replayMaxSeconds: number | null;
   onSave: (config: AppConfigDto) => Promise<AppConfigDto>;
   onGoToObsSettings: () => void;
+  tags: TagRecord[];
+  clips: ClipRecord[];
 }
 
 export function SettingsPanel({
@@ -79,6 +82,8 @@ export function SettingsPanel({
   replayMaxSeconds,
   onSave,
   onGoToObsSettings,
+  tags,
+  clips,
 }: SettingsPanelProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [obsUrl, setObsUrl] = useState(config.OBS_URL);
@@ -93,6 +98,9 @@ export function SettingsPanel({
   const [obsReplaySeconds, setObsReplaySeconds] = useState(initialReplay.seconds);
   const [outputDir, setOutputDir] = useState(config.CLIP_OUTPUT_DIR);
   const [autostart, setAutostart] = useState(config.AUTOSTART);
+  const [checkForUpdates, setCheckForUpdates] = useState(
+    config.CHECK_FOR_UPDATES,
+  );
   const [quickActionHotkey, setQuickActionHotkey] = useState(
     config.QUICK_ACTION_HOTKEY,
   );
@@ -133,6 +141,7 @@ export function SettingsPanel({
     }
     setOutputDir(config.CLIP_OUTPUT_DIR);
     setAutostart(config.AUTOSTART);
+    setCheckForUpdates(config.CHECK_FOR_UPDATES);
     setQuickActionHotkey(config.QUICK_ACTION_HOTKEY);
     const { drafts, nextId } = draftsFromPresets(
       config.CLIP_PRESETS,
@@ -148,6 +157,7 @@ export function SettingsPanel({
     config.OBS_REPLAY_SECONDS,
     config.CLIP_OUTPUT_DIR,
     config.AUTOSTART,
+    config.CHECK_FOR_UPDATES,
     config.QUICK_ACTION_HOTKEY,
     config.CLIP_PRESETS,
   ]);
@@ -287,6 +297,10 @@ export function SettingsPanel({
     } else if (section === "autostart") {
       if (packaged !== true) return;
       next.AUTOSTART = autostart;
+    } else if (section === "about") {
+      next.CHECK_FOR_UPDATES = checkForUpdates;
+    } else if (section === "tags") {
+      return;
     } else {
       return;
     }
@@ -303,6 +317,7 @@ export function SettingsPanel({
       if (saved.OBS_REPLAY_SECONDS != null) replaySeeded.current = true;
       setOutputDir(saved.CLIP_OUTPUT_DIR);
       setAutostart(saved.AUTOSTART);
+      setCheckForUpdates(saved.CHECK_FOR_UPDATES);
       setQuickActionHotkey(saved.QUICK_ACTION_HOTKEY);
       applyPresets(saved.CLIP_PRESETS);
       toast.success("Einstellungen gespeichert.");
@@ -314,20 +329,13 @@ export function SettingsPanel({
     }
   }
 
-  if (section === "about") {
-    return (
-      <div className="mx-auto flex w-full max-w-200 flex-col gap-4">
-        <AboutSection />
-      </div>
-    );
-  }
-
   return (
     <form
-      className="mx-auto flex w-full max-w-200 flex-col gap-4"
+      className="mx-auto flex min-h-full w-full max-w-200 flex-col px-5 pt-5"
       noValidate
       onSubmit={(e) => void handleSubmit(e)}
     >
+      <div className="flex flex-1 flex-col gap-4 pb-4">
       {section === "obs" ? (
         <ObsSection
           url={obsUrl}
@@ -360,6 +368,8 @@ export function SettingsPanel({
         />
       ) : null}
 
+      {section === "tags" ? <TagsSection tags={tags} clips={clips} /> : null}
+
       {section === "presets" ? (
         <PresetsSection
           clipPresets={clipPresets}
@@ -383,8 +393,16 @@ export function SettingsPanel({
           available={packaged}
         />
       ) : null}
-      {section === "autostart" && packaged !== true ? null : (
-        <div className="flex flex-wrap items-center gap-3">
+
+      {section === "about" ? (
+        <AboutSection
+          checkForUpdates={checkForUpdates}
+          onCheckForUpdatesChange={setCheckForUpdates}
+        />
+      ) : null}
+      </div>
+      {section === "autostart" && packaged !== true ? null : section === "tags" ? null : (
+        <div className="sticky bottom-0 z-10 -mx-5 mt-auto border-t border-white/10 bg-background/75 px-5 py-3 backdrop-blur-xl">
           <Button type="submit" disabled={saving}>
             <SaveIcon data-icon="inline-start" />
             Einstellungen speichern

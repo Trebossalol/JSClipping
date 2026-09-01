@@ -5,7 +5,6 @@ import { APP_NAME } from "@shared/app.config";
 import type { ObsStatus } from "@shared/ipc";
 import {
   AlertCircleIcon,
-  CircleCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -66,6 +65,9 @@ export async function stopObsProcess(): Promise<void> {
   toast.success("OBS wird beendet…");
 }
 
+const compactAlert =
+  "items-center py-1.5 *:[svg]:row-span-1 *:[svg]:translate-y-0 *:[svg]:opacity-70";
+
 interface ClipActionsProps {
   busy: boolean;
   obsStatus: ObsStatus | null;
@@ -87,22 +89,20 @@ export function ClipActions({
 
   if (busy) {
     return (
-      <Alert>
+      <Alert className={compactAlert}>
         <Spinner />
-        <AlertTitle>Wird verarbeitet</AlertTitle>
-        <AlertDescription>Clip wird gespeichert…</AlertDescription>
+        <AlertTitle>Clip wird gespeichert…</AlertTitle>
       </Alert>
     );
   }
 
   if (replayOff) {
     return (
-      <Alert>
+      <Alert variant="warning" className={compactAlert}>
         <TriangleAlertIcon />
         <AlertTitle>Wiederholungspuffer ist aus</AlertTitle>
         <AlertDescription>
-          {APP_NAME} speichert nur den Puffer — starte ihn in OBS oder nutze
-          autostart.bat.
+          Starte ihn in OBS oder nutze autostart.bat.
         </AlertDescription>
       </Alert>
     );
@@ -112,24 +112,22 @@ export function ClipActions({
     const wanted = clipScene?.trim() ?? "";
     const current = obsStatus?.currentScene ?? "";
     return (
-      <Alert>
+      <Alert variant="warning" className={compactAlert}>
         <TriangleAlertIcon />
         <AlertTitle>Falsche OBS-Szene</AlertTitle>
         <AlertDescription>
           Clips nutzen „{wanted}“, OBS ist auf „{current}“. Starte OBS über{" "}
-          {APP_NAME}, damit der Wiederholungspuffer die richtige Szene aufzeichnet.
+          {APP_NAME}, damit der Puffer die richtige Szene aufzeichnet.
         </AlertDescription>
       </Alert>
     );
   }
 
-  if (message) {
+  if (message?.kind === "err") {
     return (
-      <Alert variant={message.kind === "err" ? "destructive" : "default"}>
-        {message.kind === "err" ? <AlertCircleIcon /> : <CircleCheckIcon />}
-        <AlertTitle>
-          {message.kind === "err" ? "Fehler" : "Clip gespeichert"}
-        </AlertTitle>
+      <Alert variant="destructive" className={compactAlert}>
+        <AlertCircleIcon />
+        <AlertTitle>Fehler</AlertTitle>
         <AlertDescription>{message.text}</AlertDescription>
       </Alert>
     );

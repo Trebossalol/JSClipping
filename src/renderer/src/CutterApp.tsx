@@ -16,9 +16,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertCircleIcon,
-  FilmIcon,
   PlusIcon,
-  ScissorsIcon,
   XIcon,
 } from "lucide-react";
 import { ClipCutter } from "./components/ClipCutter";
@@ -283,7 +281,7 @@ export function CutterApp() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+    <div className="app-mesh flex h-full min-h-0 flex-col overflow-hidden">
       {tabIds.length === 0 ? (
         <Empty className="min-h-0 flex-1 border-0">
           <EmptyHeader>
@@ -316,7 +314,7 @@ export function CutterApp() {
           onValueChange={setActiveId}
           className="flex min-h-0 flex-1 flex-col gap-0"
         >
-          <div className="flex shrink-0 items-center gap-1 border-b bg-card px-1">
+          <div className="flex shrink-0 items-center gap-1 border-b border-white/10 bg-card/55 px-1 backdrop-blur-xl">
             <TabsList
               variant="line"
               className="no-scrollbar h-10 min-w-0 flex-1 justify-start overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0"
@@ -327,7 +325,7 @@ export function CutterApp() {
                   <div key={id} className="relative flex shrink-0">
                     <TabsTrigger
                       value={id}
-                      className="max-w-44 flex-none pr-7"
+                      className="max-w-44 flex-none pr-7 data-active:text-primary after:bg-primary"
                     >
                       <span className="truncate">{clip?.name ?? "Clip"}</span>
                     </TabsTrigger>
@@ -389,7 +387,7 @@ export function CutterApp() {
         onOpenChange={setPickerOpen}
         onSelect={openTab}
       />
-      <Toaster theme="dark" />
+      <Toaster theme="dark" closeButton/>
     </div>
   );
 }

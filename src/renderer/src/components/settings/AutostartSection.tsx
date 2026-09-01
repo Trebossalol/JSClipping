@@ -33,7 +33,7 @@ export function AutostartSection({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          <PowerIcon className="size-4" />
+          <PowerIcon className="size-4 text-primary opacity-80" />
           Autostart
         </CardTitle>
         <CardDescription>

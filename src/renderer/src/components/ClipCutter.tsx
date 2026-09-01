@@ -529,8 +529,8 @@ export function ClipCutter({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="border-b bg-card px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
+      <div className="border-b border-white/10 bg-card/55 px-4 py-3 backdrop-blur-xl">
           <Input
             value={clipName}
             disabled={busy}
@@ -549,12 +549,12 @@ export function ClipCutter({
         </div>
 
       <div className="relative min-h-0 flex-1 p-4 pb-0">
-        <div className="relative h-full overflow-hidden rounded-lg bg-black">
+        <div className="relative h-full overflow-hidden rounded-lg bg-background ring-1 ring-white/10">
           <video
             ref={videoRef}
             src={clip.mediaUrl ?? undefined}
             preload="auto"
-            className="absolute inset-0 h-full w-full object-contain bg-black"
+            className="absolute inset-0 h-full w-full object-contain bg-background"
             onLoadedMetadata={onMeta}
             onTimeUpdate={() => {
               if (scrubbingRef.current) return;
@@ -622,7 +622,7 @@ export function ClipCutter({
           aria-valuenow={Math.round(currentTime)}
         >
           <div
-            className="h-2.5 cursor-pointer rounded-t-md bg-zinc-800"
+            className="h-2.5 cursor-pointer rounded-t-md bg-secondary"
             onPointerDown={(e) => {
               if (duration <= 0) return;
               startDrag({ kind: "playhead" }, e);
@@ -704,8 +704,8 @@ export function ClipCutter({
                 startDrag({ kind: "playhead" }, e);
               }}
             >
-              <div className="mx-auto h-full w-0.5 bg-foreground" />
-              <div className="absolute top-0 left-1/2 size-2 -translate-x-1/2 rounded-full bg-foreground" />
+              <div className="mx-auto h-full w-0.5 bg-primary" />
+              <div className="absolute top-0 left-1/2 size-2 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
             </div>
           ) : null}
         </div>
@@ -754,7 +754,7 @@ export function ClipCutter({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-card/55 px-4 py-3 backdrop-blur-xl">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -14,6 +14,7 @@ import {
   writeStore,
 } from "./store.js";
 import type { ClipsStoreOptions } from "./types.js";
+import { sanitizeTagIds } from "../tags/store.js";
 
 function applyUserFileName(
   filePath: string,
@@ -50,6 +51,7 @@ export async function importClipFromFile(
     durationSeconds?: number | null;
     name?: string;
     namedByUser?: boolean;
+    tagIds?: string[];
   },
 ): Promise<ClipRecord | null> {
   const { appDataDir, outputDir } = options;
@@ -99,6 +101,7 @@ export async function importClipFromFile(
       thumbnailPath,
       missing: false,
       namedByUser: opts?.namedByUser ?? named.namedByUser,
+      tagIds: sanitizeTagIds(appDataDir, opts?.tagIds),
     };
 
     // Re-read in case another import finished while we were working

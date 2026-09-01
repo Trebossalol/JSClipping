@@ -1,18 +1,16 @@
-import { useEffect, useState } from "react";
 import { APP_NAME } from "@shared/app.config";
 import {
-  ChevronRightIcon,
-  FilePenIcon,
+  CableIcon,
+  ClockIcon,
+  HardDriveIcon,
+  InfoIcon,
   LibraryIcon,
+  PowerIcon,
   ScissorsIcon,
-  SettingsIcon,
+  TagsIcon,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import logoUrl from "../../../../resources/logo.svg";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -24,28 +22,74 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
 
 export const SETTINGS_SECTIONS = [
-  { id: "obs", title: "OBS" },
-  { id: "storage", title: "Speicher" },
-  { id: "presets", title: "Presets" },
-  { id: "autostart", title: "Autostart" },
-  { id: "about", title: "Über" },
-] as const;
+  {
+    id: "obs",
+    title: "OBS",
+    description: "WebSocket, Szene und Wiederholungspuffer",
+    icon: CableIcon,
+  },
+  {
+    id: "storage",
+    title: "Speicher",
+    description: "Ausgabeordner und Speicherplatz",
+    icon: HardDriveIcon,
+  },
+  {
+    id: "tags",
+    title: "Tags",
+    description: "Clips in der Bibliothek kennzeichnen",
+    icon: TagsIcon,
+  },
+  {
+    id: "presets",
+    title: "Presets",
+    description: "Clip-Längen, Hotkeys und Schnellmenü",
+    icon: ClockIcon,
+  },
+  {
+    id: "autostart",
+    title: "Autostart",
+    description: "Mit Windows und OBS starten",
+    icon: PowerIcon,
+  },
+  {
+    id: "about",
+    title: "Über",
+    description: "Version und Projekt",
+    icon: InfoIcon,
+  },
+] as const satisfies ReadonlyArray<{
+  id: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}>;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]["id"];
 export type AppView = "library" | SettingsSection;
+
+export const LIBRARY_COPY = {
+  title: "Bibliothek",
+  description: "Clips speichern, umbenennen und schneiden",
+} as const;
+
+export function viewCopy(view: AppView): {
+  title: string;
+  description: string;
+} {
+  if (view === "library") return LIBRARY_COPY;
+  const section = SETTINGS_SECTIONS.find((item) => item.id === view);
+  return section ?? LIBRARY_COPY;
+}
 
 interface AppSidebarProps {
   view: AppView;
   onViewChange: (view: AppView) => void;
   untitledCount: number;
-  onUntitled: () => void;
   onOpenCutter: () => void;
 }
 
@@ -53,16 +97,8 @@ export function AppSidebar({
   view,
   onViewChange,
   untitledCount,
-  onUntitled,
   onOpenCutter,
 }: AppSidebarProps) {
-  const settingsActive = view !== "library";
-  const [settingsOpen, setSettingsOpen] = useState(settingsActive);
-
-  useEffect(() => {
-    if (settingsActive) setSettingsOpen(true);
-  }, [settingsActive]);
-
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -76,7 +112,9 @@ export function AppSidebar({
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold">{APP_NAME}</span>
-                <span className="truncate text-xs">OBS Clipping Software</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  OBS Clipping Software
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -98,64 +136,43 @@ export function AppSidebar({
                   <span>Bibliothek</span>
                 </SidebarMenuButton>
                 {untitledCount > 0 ? (
-                  <SidebarMenuBadge>{untitledCount}</SidebarMenuBadge>
+                  <SidebarMenuBadge className="bg-primary/15 text-primary">
+                    {untitledCount}
+                  </SidebarMenuBadge>
                 ) : null}
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  tooltip="Schneiden"
+                  tooltip="Schneiden — öffnet ein eigenes Fenster"
                   onClick={onOpenCutter}
                 >
                   <ScissorsIcon />
                   <span>Schneiden</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <Collapsible
-                asChild
-                open={settingsOpen}
-                onOpenChange={setSettingsOpen}
-                className="group/collapsible"
-              >
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip="Einstellungen">
-                      <SettingsIcon />
-                      <span>Einstellungen</span>
-                      <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Einstellungen</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {SETTINGS_SECTIONS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton
+                      isActive={view === item.id}
+                      tooltip={item.title}
+                      onClick={() => onViewChange(item.id)}
+                    >
+                      <Icon />
+                      <span>{item.title}</span>
                     </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {SETTINGS_SECTIONS.map((item) => (
-                        <SidebarMenuSubItem key={item.id}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={view === item.id}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => onViewChange(item.id)}
-                            >
-                              <span>{item.title}</span>
-                            </button>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
-              {untitledCount > 0 && view !== "library" ? (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    tooltip={`${untitledCount} unbenannt`}
-                    onClick={onUntitled}
-                  >
-                    <FilePenIcon />
-                    <span>{untitledCount} unbenannt</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ) : null}
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -137,7 +137,7 @@ export function ObsSection({
             <CardHeader>
               <AccordionTrigger className="py-0 hover:no-underline">
                 <CardTitle className="flex items-center gap-1.5">
-                  <CableIcon className="size-4" />
+                  <CableIcon className="size-4 text-primary opacity-80" />
                   Server
                 </CardTitle>
               </AccordionTrigger>
@@ -265,7 +265,7 @@ export function ObsSection({
             <CardHeader>
               <AccordionTrigger className="py-0 hover:no-underline">
                 <CardTitle className="flex items-center gap-1.5">
-                  <FilmIcon className="size-4" />
+                  <FilmIcon className="size-4 text-primary opacity-80" />
                   Aufnahme
                 </CardTitle>
               </AccordionTrigger>

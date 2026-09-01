@@ -47,6 +47,7 @@ import {
   registerPrivilegedSchemes,
 } from "./protocol.js";
 import { getConfig, getAppDataDir, initSession } from "./session.js";
+import { scheduleUpdateCheck } from "./updates.js";
 import {
   createAppTray,
   destroyTray,
@@ -119,6 +120,7 @@ app.whenReady().then(async () => {
   registerIpc();
   Menu.setApplicationMenu(null);
   createMainWindow();
+  scheduleUpdateCheck();
   syncPresetHotkeys(false);
   createAppTray({
     getWindow: getMainWindow,
