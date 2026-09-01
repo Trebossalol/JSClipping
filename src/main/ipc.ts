@@ -1,7 +1,7 @@
 /**
  * Renderer IPC handlers. Domain work is delegated to `obs/`, `clips/`, and `windows/`.
  */
-import { dialog, ipcMain, shell } from "electron";
+import { app, dialog, ipcMain, shell } from "electron";
 import {
   deleteClip,
   findClip,
@@ -36,6 +36,7 @@ import {
   stopObsClipMode,
 } from "./obs/index.js";
 import { getAppDataDir, getConfig, persistConfig } from "./session.js";
+import { checkForAppUpdate } from "./updates.js";
 import {
   getMainWindow,
   hideQuickActionWindow,
@@ -46,6 +47,10 @@ export function registerIpc(): void {
   ipcMain.handle(IpcChannels.getConfig, (): AppConfigDto => ({ ...getConfig() }));
 
   ipcMain.handle(IpcChannels.isPackaged, (): boolean => isPackagedApp());
+
+  ipcMain.handle(IpcChannels.getVersion, (): string => app.getVersion());
+
+  ipcMain.handle(IpcChannels.checkForUpdates, () => checkForAppUpdate());
 
   ipcMain.handle(
     IpcChannels.saveConfig,

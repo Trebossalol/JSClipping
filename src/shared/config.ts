@@ -28,6 +28,7 @@ export const ConfigSchema = z.object({
   ),
   CLIP_OUTPUT_DIR: z.string().min(1),
   AUTOSTART: z.boolean().default(false),
+  CHECK_FOR_UPDATES: z.boolean().default(true),
   QUICK_ACTION_HOTKEY: z.preprocess(
     (value) => (typeof value === "string" ? normalizeHotkey(value) : null),
     z.string().nullable(),

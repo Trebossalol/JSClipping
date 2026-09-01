@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { AppConfigDto, ClipRecord, ObsStatus } from "@shared/ipc";
+import type {
+  AppConfigDto,
+  AppUpdateInfo,
+  ClipRecord,
+  ObsStatus,
+} from "@shared/ipc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -26,6 +31,7 @@ import {
   type ClipFilter,
 } from "./components/RecentClips";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
+import { showUpdateAvailableToast } from "./components/settings/AboutSection";
 import { useTopLoader } from "./components/TopLoadingBar";
 
 function untitledCount(clips: ClipRecord[]): number {
@@ -95,6 +101,11 @@ export function App() {
           setClipMessage({ text: result.error, kind: "err" });
           toast.error(result.error);
         }
+      }),
+    );
+    unsubs.push(
+      window.api.onUpdateAvailable((update: AppUpdateInfo) => {
+        showUpdateAvailableToast(update);
       }),
     );
 
@@ -201,9 +212,9 @@ export function App() {
     });
   }
 
-  if (!config) {
-    return (
-      <TooltipProvider>
+  return (
+    <TooltipProvider>
+      {!config ? (
         <SidebarProvider className="h-full min-h-0">
           <Sidebar collapsible="icon">
             <SidebarHeader>
@@ -242,67 +253,62 @@ export function App() {
             </div>
           </SidebarInset>
         </SidebarProvider>
-        <Toaster theme="dark" closeButton/>
-      </TooltipProvider>
-    );
-  }
-
-  return (
-    <TooltipProvider>
-      <SidebarProvider className="h-full min-h-0">
-        <AppSidebar
-          view={view}
-          onViewChange={setView}
-          untitledCount={untitledCount(clips)}
-          onOpenCutter={() => void openCutter()}
-        />
-
-        <SidebarInset className="app-mesh min-h-0 overflow-hidden">
-          <AppHeader
+      ) : (
+        <SidebarProvider className="h-full min-h-0">
+          <AppSidebar
             view={view}
-            obsStatus={obsStatus}
-            busy={clippingBusy}
-            lastSeconds={lastSeconds}
-            clipPresets={config.CLIP_PRESETS}
-            clipScene={config.OBS_SCENE}
-            onCreate={(seconds) => void createClip(seconds)}
-            onGoToObsSettings={() => setView("obs")}
+            onViewChange={setView}
+            untitledCount={untitledCount(clips)}
+            onOpenCutter={() => void openCutter()}
           />
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {view === "library" ? (
-              <div className="flex flex-col gap-4 px-5 py-5">
-                <ClipActions
-                  busy={clippingBusy}
-                  obsStatus={obsStatus}
-                  clipScene={config.OBS_SCENE}
-                  message={clipMessage}
+
+          <SidebarInset className="app-mesh min-h-0 overflow-hidden">
+            <AppHeader
+              view={view}
+              obsStatus={obsStatus}
+              busy={clippingBusy}
+              lastSeconds={lastSeconds}
+              clipPresets={config.CLIP_PRESETS}
+              clipScene={config.OBS_SCENE}
+              onCreate={(seconds) => void createClip(seconds)}
+              onGoToObsSettings={() => setView("obs")}
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {view === "library" ? (
+                <div className="flex flex-col gap-4 px-5 py-5">
+                  <ClipActions
+                    busy={clippingBusy}
+                    obsStatus={obsStatus}
+                    clipScene={config.OBS_SCENE}
+                    message={clipMessage}
+                  />
+                  <RecentClips
+                    clips={clips}
+                    filter={filter}
+                    onFilterChange={setFilter}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                    onOpen={(id) => void openClip(id)}
+                    onRename={(id, name) => void renameClip(id, name)}
+                    onReveal={revealClip}
+                    onDelete={(id) => deleteClip(id)}
+                    onCut={(id) => void openCutter(id)}
+                  />
+                </div>
+              ) : (
+                <SettingsPanel
+                  section={view}
+                  config={config}
+                  replayMaxSeconds={obsStatus?.replayMaxSeconds ?? null}
+                  onSave={saveConfig}
+                  onGoToObsSettings={() => setView("obs")}
                 />
-                <RecentClips
-                  clips={clips}
-                  filter={filter}
-                  onFilterChange={setFilter}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  onOpen={(id) => void openClip(id)}
-                  onRename={(id, name) => void renameClip(id, name)}
-                  onReveal={revealClip}
-                  onDelete={(id) => deleteClip(id)}
-                  onCut={(id) => void openCutter(id)}
-                />
-              </div>
-            ) : (
-              <SettingsPanel
-                section={view}
-                config={config}
-                replayMaxSeconds={obsStatus?.replayMaxSeconds ?? null}
-                onSave={saveConfig}
-                onGoToObsSettings={() => setView("obs")}
-              />
-            )}
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-      <Toaster theme="dark" closeButton/>
+              )}
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
+      )}
+      <Toaster theme="dark" closeButton />
     </TooltipProvider>
   );
 }

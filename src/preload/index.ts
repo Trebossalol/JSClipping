@@ -13,6 +13,8 @@ import {
   type ObsStatus,
   type RenameClipResult,
   type StorageInfoResult,
+  type AppUpdateInfo,
+  type CheckForUpdatesResult,
 } from "../shared/ipc.js";
 
 const api: ElectronApi = {
@@ -112,6 +114,21 @@ const api: ElectronApi = {
   openExternal: (url: string) =>
     ipcRenderer.invoke(IpcChannels.openExternal, url),
   isPackaged: () => ipcRenderer.invoke(IpcChannels.isPackaged),
+  getVersion: () => ipcRenderer.invoke(IpcChannels.getVersion),
+  checkForUpdates: (): Promise<CheckForUpdatesResult> =>
+    ipcRenderer.invoke(IpcChannels.checkForUpdates),
+  onUpdateAvailable: (callback: (update: AppUpdateInfo) => void) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      update: AppUpdateInfo,
+    ): void => {
+      callback(update);
+    };
+    ipcRenderer.on(IpcChannels.updateAvailable, listener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.updateAvailable, listener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);

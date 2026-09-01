@@ -6,8 +6,11 @@ export const APP_NAME = "Easy Clip";
 /** Public author name shown on the About page. */
 export const APP_AUTHOR = "Trebossa";
 
+/** `owner/repo` for GitHub Releases API checks. */
+export const APP_GITHUB_REPO = "Trebossalol/easy-clip" as const;
+
 /** Source repository opened from the About page. */
-export const APP_GITHUB_URL = "https://github.com/Trebossalol/easy-clip";
+export const APP_GITHUB_URL = `https://github.com/${APP_GITHUB_REPO}`;
 
 /** Product id (exe, AppData folder, installer artifacts). */
 export const APP_ID = "EasyClip";
@@ -33,6 +36,7 @@ export const DEFAULT_USER_CONFIG = {
   OBS_EXE_PATH: "",
   CLIP_OUTPUT_DIR: "C:\\Clips",
   AUTOSTART: false,
+  CHECK_FOR_UPDATES: true,
   CLIP_PRESETS: DEFAULT_CLIP_PRESETS.map((seconds) => ({
     seconds,
     hotkey: null as string | null,

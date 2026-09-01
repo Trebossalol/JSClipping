@@ -93,6 +93,9 @@ export function SettingsPanel({
   const [obsReplaySeconds, setObsReplaySeconds] = useState(initialReplay.seconds);
   const [outputDir, setOutputDir] = useState(config.CLIP_OUTPUT_DIR);
   const [autostart, setAutostart] = useState(config.AUTOSTART);
+  const [checkForUpdates, setCheckForUpdates] = useState(
+    config.CHECK_FOR_UPDATES,
+  );
   const [quickActionHotkey, setQuickActionHotkey] = useState(
     config.QUICK_ACTION_HOTKEY,
   );
@@ -133,6 +136,7 @@ export function SettingsPanel({
     }
     setOutputDir(config.CLIP_OUTPUT_DIR);
     setAutostart(config.AUTOSTART);
+    setCheckForUpdates(config.CHECK_FOR_UPDATES);
     setQuickActionHotkey(config.QUICK_ACTION_HOTKEY);
     const { drafts, nextId } = draftsFromPresets(
       config.CLIP_PRESETS,
@@ -148,6 +152,7 @@ export function SettingsPanel({
     config.OBS_REPLAY_SECONDS,
     config.CLIP_OUTPUT_DIR,
     config.AUTOSTART,
+    config.CHECK_FOR_UPDATES,
     config.QUICK_ACTION_HOTKEY,
     config.CLIP_PRESETS,
   ]);
@@ -287,6 +292,8 @@ export function SettingsPanel({
     } else if (section === "autostart") {
       if (packaged !== true) return;
       next.AUTOSTART = autostart;
+    } else if (section === "about") {
+      next.CHECK_FOR_UPDATES = checkForUpdates;
     } else {
       return;
     }
@@ -303,6 +310,7 @@ export function SettingsPanel({
       if (saved.OBS_REPLAY_SECONDS != null) replaySeeded.current = true;
       setOutputDir(saved.CLIP_OUTPUT_DIR);
       setAutostart(saved.AUTOSTART);
+      setCheckForUpdates(saved.CHECK_FOR_UPDATES);
       setQuickActionHotkey(saved.QUICK_ACTION_HOTKEY);
       applyPresets(saved.CLIP_PRESETS);
       toast.success("Einstellungen gespeichert.");
@@ -312,14 +320,6 @@ export function SettingsPanel({
     } finally {
       setSaving(false);
     }
-  }
-
-  if (section === "about") {
-    return (
-      <div className="mx-auto flex w-full max-w-200 flex-col gap-4 px-5 py-5">
-        <AboutSection />
-      </div>
-    );
   }
 
   return (
@@ -382,6 +382,13 @@ export function SettingsPanel({
           autostart={autostart}
           onAutostartChange={setAutostart}
           available={packaged}
+        />
+      ) : null}
+
+      {section === "about" ? (
+        <AboutSection
+          checkForUpdates={checkForUpdates}
+          onCheckForUpdatesChange={setCheckForUpdates}
         />
       ) : null}
       </div>

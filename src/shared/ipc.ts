@@ -61,6 +61,7 @@ export interface AppConfigDto {
   OBS_EXE_PATH: string;
   CLIP_OUTPUT_DIR: string;
   AUTOSTART: boolean;
+  CHECK_FOR_UPDATES: boolean;
   CLIP_PRESETS: ClipPreset[];
   QUICK_ACTION_HOTKEY: string | null;
 }
@@ -145,6 +146,9 @@ export const IpcChannels = {
   selectQuickAction: "quick-action:select",
   openExternal: "shell:open-external",
   isPackaged: "app:is-packaged",
+  getVersion: "app:get-version",
+  checkForUpdates: "app:check-for-updates",
+  updateAvailable: "app:update-available",
 } as const;
 
 export type CreateClipResult =
@@ -172,6 +176,15 @@ export interface HotkeyClipPayload {
   result: CreateClipResult;
   title?: string;
 }
+
+export interface AppUpdateInfo {
+  version: string;
+  url: string;
+}
+
+export type CheckForUpdatesResult =
+  | { ok: true; update: AppUpdateInfo | null }
+  | { ok: false; error: string };
 
 export interface ElectronApi {
   getConfig(): Promise<AppConfigDto>;
@@ -208,6 +221,9 @@ export interface ElectronApi {
   selectQuickAction(seconds: number, title?: string): Promise<void>;
   openExternal(url: string): Promise<{ ok: boolean; error?: string }>;
   isPackaged(): Promise<boolean>;
+  getVersion(): Promise<string>;
+  checkForUpdates(): Promise<CheckForUpdatesResult>;
+  onUpdateAvailable(callback: (update: AppUpdateInfo) => void): () => void;
 }
 
 declare global {
