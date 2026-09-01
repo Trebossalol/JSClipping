@@ -29,7 +29,7 @@ export function AboutSection() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          <InfoIcon className="size-4" />
+          <InfoIcon className="size-4 text-primary opacity-80" />
           Über
         </CardTitle>
         <CardDescription>

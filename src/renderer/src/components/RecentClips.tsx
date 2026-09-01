@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -41,6 +47,7 @@ import {
   HardDriveIcon,
   LayoutGridIcon,
   MonitorIcon,
+  MoreHorizontalIcon,
   PlayIcon,
   ScissorsIcon,
   Trash2Icon,
@@ -157,87 +164,164 @@ function ClipCard({
   return (
     <Card
       className={cn(
-        "gap-0 py-0",
-        selected && "ring-2 ring-primary",
+        "gap-0 py-0 transition-shadow",
+        selected &&
+          "ring-2 ring-primary shadow-[0_0_24px_color-mix(in_srgb,var(--primary)_28%,transparent)]",
         clip.missing && "opacity-60",
       )}
     >
-      <button
-        type="button"
-        className="relative block w-full overflow-hidden rounded-t-xl text-left"
-        title={clip.missing ? "Datei fehlt" : "Clip öffnen"}
-        onClick={() => {
-          onSelect(clip.id);
-          if (!clip.missing) onOpen(clip.id);
-        }}
-      >
-        {clip.thumbnailPath && !clip.missing ? (
-          <img
-            src={clip.thumbnailPath}
-            alt={clip.name}
-            loading="lazy"
-            className="aspect-video w-full object-cover"
+      <div className="group/thumb relative">
+        <button
+          type="button"
+          className="relative block w-full overflow-hidden rounded-t-xl text-left"
+          title={clip.missing ? "Datei fehlt" : "Clip öffnen"}
+          onClick={() => {
+            onSelect(clip.id);
+            if (!clip.missing) onOpen(clip.id);
+          }}
+        >
+          {clip.thumbnailPath && !clip.missing ? (
+            <img
+              src={clip.thumbnailPath}
+              alt={clip.name}
+              loading="lazy"
+              className="aspect-video w-full object-cover"
+            />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center bg-muted text-muted-foreground">
+              {clip.missing ? (
+                <span className="flex items-center gap-1 text-xs">
+                  <FileXIcon className="size-3.5 opacity-70" />
+                  Datei fehlt
+                </span>
+              ) : (
+                <FilmIcon className="opacity-50" />
+              )}
+            </div>
+          )}
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 via-background/15 to-transparent"
+            aria-hidden
           />
-        ) : (
-          <div className="flex aspect-video w-full items-center justify-center bg-muted text-muted-foreground">
-            {clip.missing ? (
-              <span className="flex items-center gap-1 text-xs">
-                <FileXIcon className="size-3.5" />
-                Datei fehlt
-              </span>
-            ) : (
-              <FilmIcon />
-            )}
-          </div>
-        )}
-        {resolution ? (
-          <div className="absolute left-2 top-2">
-            {pixels && pixels !== resolution ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="secondary">
-                    <MonitorIcon data-icon="inline-start" />
-                    {resolution}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>{pixels}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Badge variant="secondary">
-                <MonitorIcon data-icon="inline-start" />
-                {resolution}
+          {resolution ? (
+            <div className="absolute top-2 left-2 z-10">
+              {pixels && pixels !== resolution ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant="secondary"
+                      className="glass border-white/15 bg-background/40"
+                    >
+                      <MonitorIcon
+                        data-icon="inline-start"
+                        className="opacity-70"
+                      />
+                      {resolution}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>{pixels}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Badge
+                  variant="secondary"
+                  className="glass border-white/15 bg-background/40"
+                >
+                  <MonitorIcon
+                    data-icon="inline-start"
+                    className="opacity-70"
+                  />
+                  {resolution}
+                </Badge>
+              )}
+            </div>
+          ) : null}
+          {!clip.namedByUser && !clip.missing ? (
+            <div className="absolute top-2 right-2 z-10">
+              <Badge className="bg-primary/85 text-primary-foreground">
+                <FilePenIcon data-icon="inline-start" className="opacity-80" />
+                Unbenannt
               </Badge>
-            )}
+            </div>
+          ) : null}
+          <div className="absolute inset-x-2 bottom-2 z-10 flex items-end justify-between gap-1">
+            <Badge
+              variant="secondary"
+              className="glass max-w-[min(100%,11rem)] truncate border-white/15 bg-background/40"
+            >
+              <CalendarIcon data-icon="inline-start" className="opacity-70" />
+              {formatDate(clip.createdAt)}
+            </Badge>
+            <div className="flex min-w-0 flex-wrap justify-end gap-1">
+              {duration ? (
+                <Badge
+                  variant="secondary"
+                  className="glass border-white/15 bg-background/40"
+                >
+                  <ClockIcon data-icon="inline-start" className="opacity-70" />
+                  {duration}
+                </Badge>
+              ) : null}
+              {fileSize ? (
+                <Badge
+                  variant="secondary"
+                  className="glass border-white/15 bg-background/40"
+                >
+                  <HardDriveIcon
+                    data-icon="inline-start"
+                    className="opacity-70"
+                  />
+                  {fileSize}
+                </Badge>
+              ) : null}
+              {clip.missing ? (
+                <Badge variant="destructive">
+                  <FileXIcon data-icon="inline-start" className="opacity-70" />
+                  Fehlt
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+        </button>
+        {!clip.missing ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-2 bg-background/25 opacity-0 transition-opacity group-hover/thumb:pointer-events-auto group-hover/thumb:opacity-100"
+            onClick={() => {
+              onSelect(clip.id);
+              onOpen(clip.id);
+            }}
+          >
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="glass size-10 border-white/15 shadow-lg"
+              aria-label="Öffnen"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(clip.id);
+                onOpen(clip.id);
+              }}
+            >
+              <PlayIcon className="opacity-80" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="glass size-10 border-white/15 shadow-lg"
+              aria-label="Schneiden"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(clip.id);
+                onCut(clip.id);
+              }}
+            >
+              <ScissorsIcon className="opacity-80" />
+            </Button>
           </div>
         ) : null}
-        <div className="absolute inset-x-2 bottom-2 flex items-end justify-between gap-1">
-          <Badge variant="secondary" className="max-w-[min(100%,11rem)] truncate">
-            <CalendarIcon data-icon="inline-start" />
-            {formatDate(clip.createdAt)}
-          </Badge>
-          <div className="flex min-w-0 flex-wrap justify-end gap-1">
-            {duration ? (
-              <Badge variant="secondary">
-                <ClockIcon data-icon="inline-start" />
-                {duration}
-              </Badge>
-            ) : null}
-            {fileSize ? (
-              <Badge variant="secondary">
-                <HardDriveIcon data-icon="inline-start" />
-                {fileSize}
-              </Badge>
-            ) : null}
-            {clip.missing ? (
-              <Badge variant="destructive">
-                <FileXIcon data-icon="inline-start" />
-                Fehlt
-              </Badge>
-            ) : null}
-          </div>
-        </div>
-      </button>
-      <div className="flex flex-col gap-2 p-2.5">
+      </div>
+      <div className="flex items-center gap-1.5 p-2.5">
         <Input
           value={name}
           title="Titel bearbeiten (benennt auch die Datei um)"
@@ -246,62 +330,47 @@ function ClipCard({
           onKeyDown={onKeyDown}
           onFocus={() => onSelect(clip.id)}
         />
-        <ButtonGroup className="w-full">
-          <ButtonGroup className="w-full">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               type="button"
-              size="sm"
-              variant="secondary"
-              className="flex-1"
-              disabled={!!clip.missing}
-              onClick={() => onOpen(clip.id)}
+              size="icon-sm"
+              variant="ghost"
+              className="shrink-0 text-muted-foreground"
+              aria-label="Weitere Aktionen"
             >
-              <PlayIcon data-icon="inline-start" />
+              <MoreHorizontalIcon className="opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={!!clip.missing}
+              onSelect={() => onOpen(clip.id)}
+            >
+              <PlayIcon className="opacity-70" />
               Öffnen
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="flex-1"
+            </DropdownMenuItem>
+            <DropdownMenuItem
               disabled={!!clip.missing}
-              onClick={() => onCut(clip.id)}
+              onSelect={() => onCut(clip.id)}
             >
-              <ScissorsIcon data-icon="inline-start" />
+              <ScissorsIcon className="opacity-70" />
               Schneiden
-            </Button>
-          </ButtonGroup>
-          <ButtonGroup>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="outline"
-                  aria-label="Im Ordner anzeigen"
-                  onClick={() => onReveal(clip.id)}
-                >
-                  <FolderOpenIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Im Ordner anzeigen</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="destructive"
-                  aria-label="Löschen"
-                  onClick={() => onDelete(clip.id)}
-                >
-                  <Trash2Icon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Löschen</TooltipContent>
-            </Tooltip>
-          </ButtonGroup>
-        </ButtonGroup>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onReveal(clip.id)}>
+              <FolderOpenIcon className="opacity-70" />
+              Im Ordner anzeigen
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => onDelete(clip.id)}
+            >
+              <Trash2Icon />
+              Löschen
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </Card>
   );
@@ -386,10 +455,10 @@ export function RecentClips({
   }
 
   return (
-    <div ref={sectionRef} className="flex flex-col gap-2.5">
+    <div ref={sectionRef} className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="flex items-center gap-1.5 text-sm font-medium">
-          <FilmIcon className="size-3.5" />
+          <FilmIcon className="size-3.5 opacity-70" />
           Aktuelle Clips
         </p>
         <p className="text-xs text-muted-foreground">
@@ -408,22 +477,22 @@ export function RecentClips({
             }}
           >
             <ToggleGroupItem value="all">
-              <LayoutGridIcon data-icon="inline-start" />
+              <LayoutGridIcon data-icon="inline-start" className="opacity-70" />
               Alle
             </ToggleGroupItem>
             <ToggleGroupItem value="untitled">
-              <FilePenIcon data-icon="inline-start" />
+              <FilePenIcon data-icon="inline-start" className="opacity-70" />
               Unbenannt
             </ToggleGroupItem>
             <ToggleGroupItem value="last24h" title="Nur Clips der letzten 24 Stunden">
-              <ClockIcon data-icon="inline-start" />
+              <ClockIcon data-icon="inline-start" className="opacity-70" />
               24 Std.
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
       </div>
       {visible.length === 0 ? (
-        <Empty className="border border-dashed">
+        <Empty className="glass border border-dashed border-white/10">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               {clips.length === 0 ? <FilmIcon /> : <FileQuestionIcon />}

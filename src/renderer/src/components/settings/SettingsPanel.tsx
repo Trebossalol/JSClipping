@@ -316,7 +316,7 @@ export function SettingsPanel({
 
   if (section === "about") {
     return (
-      <div className="mx-auto flex w-full max-w-200 flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-200 flex-col gap-4 px-5 py-5">
         <AboutSection />
       </div>
     );
@@ -324,10 +324,11 @@ export function SettingsPanel({
 
   return (
     <form
-      className="mx-auto flex w-full max-w-200 flex-col gap-4"
+      className="mx-auto flex min-h-full w-full max-w-200 flex-col px-5 pt-5"
       noValidate
       onSubmit={(e) => void handleSubmit(e)}
     >
+      <div className="flex flex-1 flex-col gap-4 pb-4">
       {section === "obs" ? (
         <ObsSection
           url={obsUrl}
@@ -383,8 +384,9 @@ export function SettingsPanel({
           available={packaged}
         />
       ) : null}
+      </div>
       {section === "autostart" && packaged !== true ? null : (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="sticky bottom-0 z-10 -mx-5 mt-auto border-t border-white/10 bg-background/75 px-5 py-3 backdrop-blur-xl">
           <Button type="submit" disabled={saving}>
             <SaveIcon data-icon="inline-start" />
             Einstellungen speichern

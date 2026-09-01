@@ -185,8 +185,8 @@ export function QuickActionApp() {
 
   return (
     <div className="flex h-full items-start justify-center p-2">
-      <Card size="sm" className="w-full shadow-lg">
-        <CardHeader className="border-b">
+      <Card size="sm" className="glass w-full shadow-lg ring-primary/20">
+        <CardHeader className="border-b border-white/10">
           <CardTitle className="flex items-center gap-2">
             <img src={logoUrl} alt="" className="size-6 rounded-md" />
             Clip speichern
@@ -224,7 +224,7 @@ export function QuickActionApp() {
                 </FieldLabel>
                 <InputGroup>
                   <InputGroupAddon>
-                    <TypeIcon />
+                    <TypeIcon className="opacity-70" />
                   </InputGroupAddon>
                   <InputGroupInput
                     ref={titleRef}
@@ -255,12 +255,13 @@ export function QuickActionApp() {
                       key={preset.seconds}
                       value={presetValue(preset)}
                       disabled={disabled}
+                      className="data-selected:bg-primary/15 data-selected:*:[svg]:text-primary"
                       onSelect={() => {
                         if (disabled) return;
                         selectPreset(preset.seconds);
                       }}
                     >
-                      <ClockIcon />
+                      <ClockIcon className="opacity-70" />
                       Letzte {formatDuration(preset.seconds)}
                       <CommandShortcut>{index + 1}</CommandShortcut>
                     </CommandItem>

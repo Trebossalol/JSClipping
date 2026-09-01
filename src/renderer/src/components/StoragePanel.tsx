@@ -118,7 +118,7 @@ export function StoragePanel({ className }: StoragePanelProps) {
     <Card className={cn(className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          <HardDriveIcon className="size-4" />
+          <HardDriveIcon className="size-4 text-primary opacity-80" />
           Speicher
         </CardTitle>
         <CardDescription>

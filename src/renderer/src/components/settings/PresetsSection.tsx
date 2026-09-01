@@ -89,7 +89,7 @@ export function PresetsSection({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          <ClockIcon className="size-4" />
+          <ClockIcon className="size-4 text-primary opacity-80" />
           Presets
         </CardTitle>
       </CardHeader>

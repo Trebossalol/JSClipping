@@ -19,8 +19,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { formatDuration } from "./format";
 import { formatHotkey } from "@shared/hotkeys";
 import { AppSidebar, type AppView } from "./components/AppSidebar";
+import { AppHeader } from "./components/CommandBar";
 import { ClipActions } from "./components/ClipActions";
-import { CommandBar } from "./components/CommandBar";
 import {
   RecentClips,
   type ClipFilter,
@@ -228,21 +228,21 @@ export function App() {
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <SidebarInset className="min-h-0 overflow-hidden">
-            <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarInset className="app-mesh min-h-0 overflow-hidden">
+            <header className="flex min-h-12 shrink-0 items-center gap-3 border-b border-white/10 bg-card/55 px-4 py-2 backdrop-blur-xl">
               <Skeleton className="size-7" />
-              <Skeleton className="h-7 w-32" />
-              <Skeleton className="h-7 w-14" />
-              <Skeleton className="h-7 w-14" />
-              <Skeleton className="h-7 w-14" />
+              <div className="flex flex-col gap-1">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+              <Skeleton className="ml-auto h-7 w-36" />
             </header>
             <div className="flex flex-1 flex-col gap-4 px-5 py-5">
-              <Skeleton className="h-28 w-full" />
               <Skeleton className="h-64 w-full" />
             </div>
           </SidebarInset>
         </SidebarProvider>
-        <Toaster theme="dark" />
+        <Toaster theme="dark" closeButton/>
       </TooltipProvider>
     );
   }
@@ -254,15 +254,12 @@ export function App() {
           view={view}
           onViewChange={setView}
           untitledCount={untitledCount(clips)}
-          onUntitled={() => {
-            setView("library");
-            setFilter("untitled");
-          }}
           onOpenCutter={() => void openCutter()}
         />
 
-        <SidebarInset className="min-h-0 overflow-hidden">
-          <CommandBar
+        <SidebarInset className="app-mesh min-h-0 overflow-hidden">
+          <AppHeader
+            view={view}
             obsStatus={obsStatus}
             busy={clippingBusy}
             lastSeconds={lastSeconds}
@@ -271,9 +268,9 @@ export function App() {
             onCreate={(seconds) => void createClip(seconds)}
             onGoToObsSettings={() => setView("obs")}
           />
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {view === "library" ? (
-              <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-4 px-5 py-5">
                 <ClipActions
                   busy={clippingBusy}
                   obsStatus={obsStatus}
@@ -305,7 +302,7 @@ export function App() {
           </div>
         </SidebarInset>
       </SidebarProvider>
-      <Toaster theme="dark" />
+      <Toaster theme="dark" closeButton/>
     </TooltipProvider>
   );
 }

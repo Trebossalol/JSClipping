@@ -33,11 +33,11 @@ export function StorageSection({
   onBrowse,
 }: StorageSectionProps) {
   return (
-    <>
+    <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-1.5">
-            <FolderOutputIcon className="size-4" />
+            <FolderOutputIcon className="size-4 text-primary opacity-80" />
             Ausgabe
           </CardTitle>
           <CardDescription>
@@ -101,6 +101,6 @@ export function StorageSection({
         </CardContent>
       </Card>
       <StoragePanel />
-    </>
+    </div>
   );
 }

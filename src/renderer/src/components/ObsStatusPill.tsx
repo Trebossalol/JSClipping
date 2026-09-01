@@ -13,7 +13,14 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { formatDuration } from "@/format";
 import type { ObsStatus } from "@shared/ipc";
-import { ChevronDownIcon, PlugIcon, SettingsIcon, StopCircle, StopCircleIcon, UnplugIcon, XCircleIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  PlugIcon,
+  SettingsIcon,
+  UnplugIcon,
+  XCircleIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { startObsWithAutostart, stopObsProcess } from "./ClipActions";
 import { useTopLoader } from "./TopLoadingBar";
 
@@ -57,12 +64,16 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
     : connected
       ? replayOff
         ? "Puffer aus"
-        : "OBS verbunden"
-      : "OBS getrennt - klicken zum Starten";
+        : replayMaxLabel
+          ? `OBS · ${replayMaxLabel}`
+          : "OBS verbunden"
+      : "OBS getrennt";
   const title = connecting
     ? undefined
     : connected
-      ? undefined
+      ? replayOff
+        ? "Wiederholungspuffer ist aus"
+        : undefined
       : running
         ? (status.error ?? "Nicht verbunden — klicken zum Verbinden")
         : (status.error ?? "Nicht verbunden — klicken zum Starten");
@@ -74,6 +85,10 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
         type="button"
         size="sm"
         variant={variant}
+        className={cn(
+          "glass border-white/10",
+          connected && !replayOff && "text-foreground",
+        )}
         title={title}
         aria-label="OBS-Status"
         disabled={busy || connecting}
@@ -83,10 +98,21 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
       >
         {connecting ? (
           <Spinner />
-        ) : connected ? (
-          <PlugIcon data-icon="inline-start" />
         ) : (
-          <UnplugIcon data-icon="inline-start" />
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              connected && !replayOff && "bg-primary pulse-dot",
+              connected && replayOff && "bg-amber-400",
+              !connected && "bg-destructive",
+            )}
+            aria-hidden
+          />
+        )}
+        {connected ? (
+          <PlugIcon data-icon="inline-start" className="opacity-70" />
+        ) : connecting ? null : (
+          <UnplugIcon data-icon="inline-start" className="opacity-70" />
         )}
         {label}
       </Button>
@@ -96,19 +122,17 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
             type="button"
             size="sm"
             variant={variant}
-            className="px-1.5"
+            className="glass border-white/10 px-1.5"
             disabled={busy || connecting}
             aria-label="OBS-Aktionen"
           >
-            <ChevronDownIcon />
+            <ChevronDownIcon className="opacity-70" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-60">
+        <DropdownMenuContent align="end" className="min-w-60">
           {!connected && status?.error ? (
             <DropdownMenuGroup>
-              <DropdownMenuLabel>
-                {status.error}
-              </DropdownMenuLabel>
+              <DropdownMenuLabel>{status.error}</DropdownMenuLabel>
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
           ) : null}
@@ -118,8 +142,7 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
                 disabled={busy}
                 onSelect={() => void onStartObs()}
               >
-                {busy ? 
-                <Spinner /> : <PlugIcon data-icon="inline-start" />}
+                {busy ? <Spinner /> : <PlugIcon data-icon="inline-start" />}
                 {running ? "Verbinden" : "OBS starten"}
               </DropdownMenuItem>
             ) : null}
@@ -136,7 +159,7 @@ export function ObsStatusPill({ status, onGoToSettings }: ObsStatusPillProps) {
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onGoToSettings}>
-            <SettingsIcon />
+            <SettingsIcon className="opacity-70" />
             OBS-Einstellungen
           </DropdownMenuItem>
         </DropdownMenuContent>
