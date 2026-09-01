@@ -1,6 +1,6 @@
 {
   "name": "easy-clip",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Easy Clip is a simple tool to clip OBS replay buffer clips to a chosen length.",
   "author": "Trebossa",
   "license": "MIT",
