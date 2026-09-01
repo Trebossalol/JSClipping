@@ -7,6 +7,7 @@ import {
   LibraryIcon,
   PowerIcon,
   ScissorsIcon,
+  TagsIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import logoUrl from "../../../../resources/logo.svg";
@@ -36,6 +37,12 @@ export const SETTINGS_SECTIONS = [
     title: "Speicher",
     description: "Ausgabeordner und Speicherplatz",
     icon: HardDriveIcon,
+  },
+  {
+    id: "tags",
+    title: "Tags",
+    description: "Clips in der Bibliothek kennzeichnen",
+    icon: TagsIcon,
   },
   {
     id: "presets",

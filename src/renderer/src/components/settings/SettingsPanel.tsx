@@ -6,7 +6,7 @@ import {
   MAX_OBS_REPLAY_SECONDS,
   MIN_OBS_REPLAY_SECONDS,
 } from "@shared/app.config";
-import type { AppConfigDto, ClipPreset } from "@shared/ipc";
+import type { AppConfigDto, ClipPreset, ClipRecord, TagRecord } from "@shared/ipc";
 import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
 import { SaveIcon } from "lucide-react";
@@ -16,6 +16,7 @@ import { AutostartSection } from "./AutostartSection";
 import { ObsSection } from "./ObsSection";
 import { PresetsSection } from "./PresetsSection";
 import { StorageSection } from "./StorageSection";
+import { TagsSection } from "./TagsSection";
 import {
   collectClipPresets,
   draftsFromPresets,
@@ -71,6 +72,8 @@ interface SettingsPanelProps {
   replayMaxSeconds: number | null;
   onSave: (config: AppConfigDto) => Promise<AppConfigDto>;
   onGoToObsSettings: () => void;
+  tags: TagRecord[];
+  clips: ClipRecord[];
 }
 
 export function SettingsPanel({
@@ -79,6 +82,8 @@ export function SettingsPanel({
   replayMaxSeconds,
   onSave,
   onGoToObsSettings,
+  tags,
+  clips,
 }: SettingsPanelProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [obsUrl, setObsUrl] = useState(config.OBS_URL);
@@ -294,6 +299,8 @@ export function SettingsPanel({
       next.AUTOSTART = autostart;
     } else if (section === "about") {
       next.CHECK_FOR_UPDATES = checkForUpdates;
+    } else if (section === "tags") {
+      return;
     } else {
       return;
     }
@@ -361,6 +368,8 @@ export function SettingsPanel({
         />
       ) : null}
 
+      {section === "tags" ? <TagsSection tags={tags} clips={clips} /> : null}
+
       {section === "presets" ? (
         <PresetsSection
           clipPresets={clipPresets}
@@ -392,7 +401,7 @@ export function SettingsPanel({
         />
       ) : null}
       </div>
-      {section === "autostart" && packaged !== true ? null : (
+      {section === "autostart" && packaged !== true ? null : section === "tags" ? null : (
         <div className="sticky bottom-0 z-10 -mx-5 mt-auto border-t border-white/10 bg-background/75 px-5 py-3 backdrop-blur-xl">
           <Button type="submit" disabled={saving}>
             <SaveIcon data-icon="inline-start" />

@@ -50,9 +50,11 @@ import {
   MoreHorizontalIcon,
   PlayIcon,
   ScissorsIcon,
+  TagsIcon,
   Trash2Icon,
 } from "lucide-react";
-import type { ClipRecord } from "@shared/ipc";
+import type { ClipRecord, TagRecord } from "@shared/ipc";
+import { clipTagIds } from "@shared/tags/names";
 import {
   formatBytes,
   formatDate,
@@ -61,6 +63,7 @@ import {
   formatResolution,
 } from "../format";
 import { DeleteClipDialog } from "./DeleteClipDialog";
+import { ClipTagPicker } from "./ClipTagPicker";
 
 const PAGE_SIZE = 12;
 
@@ -104,18 +107,33 @@ function isLast24h(createdAt: string): boolean {
   return Number.isFinite(t) && Date.now() - t <= DAY_MS;
 }
 
-function filterClips(clips: ClipRecord[], filter: ClipFilter): ClipRecord[] {
+const UNTAGGED_FILTER = "untagged";
+
+function filterClips(
+  clips: ClipRecord[],
+  filter: ClipFilter,
+  tagIds: string[],
+  untaggedOnly: boolean,
+): ClipRecord[] {
+  let next = clips;
   if (filter === "untitled") {
-    return clips.filter((c) => !c.namedByUser && !c.missing);
+    next = next.filter((c) => !c.namedByUser && !c.missing);
+  } else if (filter === "last24h") {
+    next = next.filter((c) => isLast24h(c.createdAt));
   }
-  if (filter === "last24h") {
-    return clips.filter((c) => isLast24h(c.createdAt));
+  if (untaggedOnly) {
+    return next.filter((c) => clipTagIds(c).length === 0);
   }
-  return clips;
+  if (tagIds.length > 0) {
+    const wanted = new Set(tagIds);
+    return next.filter((c) => clipTagIds(c).some((id) => wanted.has(id)));
+  }
+  return next;
 }
 
 interface ClipCardProps {
   clip: ClipRecord;
+  tags: TagRecord[];
   selected: boolean;
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
@@ -123,10 +141,13 @@ interface ClipCardProps {
   onReveal: (id: string) => void;
   onDelete: (id: string) => void;
   onCut: (id: string) => void;
+  onSetTags: (id: string, tagIds: string[]) => void | Promise<void>;
+  onCreateTag: (name: string) => Promise<TagRecord | null>;
 }
 
 function ClipCard({
   clip,
+  tags,
   selected,
   onSelect,
   onOpen,
@@ -134,8 +155,12 @@ function ClipCard({
   onReveal,
   onDelete,
   onCut,
+  onSetTags,
+  onCreateTag,
 }: ClipCardProps) {
   const [name, setName] = useState(clip.name);
+  const assignedIds = clipTagIds(clip);
+  const assignedTags = tags.filter((tag) => assignedIds.includes(tag.id));
 
   useEffect(() => {
     setName(clip.name);
@@ -321,56 +346,74 @@ function ClipCard({
           </div>
         ) : null}
       </div>
-      <div className="flex items-center gap-1.5 p-2.5">
-        <Input
-          value={name}
-          title="Titel bearbeiten (benennt auch die Datei um)"
-          onChange={(e) => setName(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={onKeyDown}
-          onFocus={() => onSelect(clip.id)}
-        />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              className="shrink-0 text-muted-foreground"
-              aria-label="Weitere Aktionen"
-            >
-              <MoreHorizontalIcon className="opacity-70" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              disabled={!!clip.missing}
-              onSelect={() => onOpen(clip.id)}
-            >
-              <PlayIcon className="opacity-70" />
-              Öffnen
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={!!clip.missing}
-              onSelect={() => onCut(clip.id)}
-            >
-              <ScissorsIcon className="opacity-70" />
-              Schneiden
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onReveal(clip.id)}>
-              <FolderOpenIcon className="opacity-70" />
-              Im Ordner anzeigen
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => onDelete(clip.id)}
-            >
-              <Trash2Icon />
-              Löschen
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="flex flex-col gap-1.5 p-2.5">
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={name}
+            title="Titel bearbeiten (benennt auch die Datei um)"
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={onKeyDown}
+            onFocus={() => onSelect(clip.id)}
+          />
+          <ClipTagPicker
+            assignedIds={assignedIds}
+            tags={tags}
+            onSetTags={(tagIds) => onSetTags(clip.id, tagIds)}
+            onCreateTag={onCreateTag}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                className="shrink-0 text-muted-foreground"
+                aria-label="Weitere Aktionen"
+              >
+                <MoreHorizontalIcon className="opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={!!clip.missing}
+                onSelect={() => onOpen(clip.id)}
+              >
+                <PlayIcon className="opacity-70" />
+                Öffnen
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!!clip.missing}
+                onSelect={() => onCut(clip.id)}
+              >
+                <ScissorsIcon className="opacity-70" />
+                Schneiden
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onReveal(clip.id)}>
+                <FolderOpenIcon className="opacity-70" />
+                Im Ordner anzeigen
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => onDelete(clip.id)}
+              >
+                <Trash2Icon />
+                Löschen
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {assignedTags.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {assignedTags.map((tag) => (
+              <Badge key={tag.id} variant="secondary" className="max-w-full">
+                <TagsIcon data-icon="inline-start" className="opacity-70" />
+                <span className="truncate">{tag.name}</span>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </div>
     </Card>
   );
@@ -378,6 +421,7 @@ function ClipCard({
 
 interface RecentClipsProps {
   clips: ClipRecord[];
+  tags: TagRecord[];
   filter: ClipFilter;
   onFilterChange: (filter: ClipFilter) => void;
   selectedId: string | null;
@@ -387,10 +431,13 @@ interface RecentClipsProps {
   onReveal: (id: string) => void;
   onDelete: (id: string) => void | Promise<void>;
   onCut: (id: string) => void;
+  onSetTags: (id: string, tagIds: string[]) => void | Promise<void>;
+  onCreateTag: (name: string) => Promise<TagRecord | null>;
 }
 
 export function RecentClips({
   clips,
+  tags,
   filter,
   onFilterChange,
   selectedId,
@@ -400,20 +447,27 @@ export function RecentClips({
   onReveal,
   onDelete,
   onCut,
+  onSetTags,
+  onCreateTag,
 }: RecentClipsProps) {
   const [page, setPage] = useState(1);
-  const [pageFilter, setPageFilter] = useState(filter);
+  const [pageKey, setPageKey] = useState("");
   const newestId = clips[0]?.id;
   const [pageNewestId, setPageNewestId] = useState(newestId);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
+  const [untaggedOnly, setUntaggedOnly] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const visible = filterClips(clips, filter);
+  const knownTagIds = new Set(tags.map((tag) => tag.id));
+  const activeTagIds = tagFilterIds.filter((id) => knownTagIds.has(id));
+  const visible = filterClips(clips, filter, activeTagIds, untaggedOnly);
+  const filterKey = `${filter}:${untaggedOnly ? UNTAGGED_FILTER : activeTagIds.slice().sort().join(",")}`;
 
   let nextPage = page;
-  if (pageFilter !== filter || pageNewestId !== newestId) {
-    setPageFilter(filter);
+  if (pageKey !== filterKey || pageNewestId !== newestId) {
+    setPageKey(filterKey);
     setPageNewestId(newestId);
     nextPage = 1;
   }
@@ -491,6 +545,34 @@ export function RecentClips({
           </ToggleGroup>
         </div>
       </div>
+      {tags.length > 0 ? (
+        <ToggleGroup
+          type="multiple"
+          variant="outline"
+          size="sm"
+          className="flex-wrap"
+          value={untaggedOnly ? [UNTAGGED_FILTER] : activeTagIds}
+          onValueChange={(values) => {
+            if (values.includes(UNTAGGED_FILTER) && !untaggedOnly) {
+              setUntaggedOnly(true);
+              setTagFilterIds([]);
+              return;
+            }
+            setUntaggedOnly(false);
+            setTagFilterIds(values.filter((id) => id !== UNTAGGED_FILTER));
+          }}
+        >
+          <ToggleGroupItem value={UNTAGGED_FILTER} title="Nur Clips ohne Tags">
+            Ohne Tags
+          </ToggleGroupItem>
+          {tags.map((tag) => (
+            <ToggleGroupItem key={tag.id} value={tag.id}>
+              <TagsIcon data-icon="inline-start" className="opacity-70" />
+              {tag.name}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      ) : null}
       {visible.length === 0 ? (
         <Empty className="glass border border-dashed border-white/10">
           <EmptyHeader>
@@ -500,16 +582,24 @@ export function RecentClips({
             <EmptyTitle>
               {clips.length === 0
                 ? "Noch keine Clips"
-                : filter === "last24h"
-                  ? "Keine Clips der letzten 24 Stunden"
-                  : "Keine unbenannten Clips"}
+                : untaggedOnly
+                  ? "Keine Clips ohne Tags"
+                  : activeTagIds.length > 0
+                    ? "Keine Clips mit diesen Tags"
+                    : filter === "last24h"
+                      ? "Keine Clips der letzten 24 Stunden"
+                      : "Keine unbenannten Clips"}
             </EmptyTitle>
             <EmptyDescription>
               {clips.length === 0
                 ? "Speichere einen Replay aus OBS oder drücke eine Clip-Schaltfläche."
-                : filter === "last24h"
-                  ? "Es gibt keine Clips aus den letzten 24 Stunden."
-                  : "Jeder Clip in der Bibliothek hat einen Titel."}
+                : untaggedOnly
+                  ? "Jeder Clip in der Bibliothek hat mindestens ein Tag."
+                  : activeTagIds.length > 0
+                    ? "Kein Clip hat eines der ausgewählten Tags."
+                    : filter === "last24h"
+                      ? "Es gibt keine Clips aus den letzten 24 Stunden."
+                      : "Jeder Clip in der Bibliothek hat einen Titel."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -520,6 +610,7 @@ export function RecentClips({
               <ClipCard
                 key={clip.id}
                 clip={clip}
+                tags={tags}
                 selected={clip.id === selectedId}
                 onSelect={onSelect}
                 onOpen={onOpen}
@@ -527,6 +618,8 @@ export function RecentClips({
                 onReveal={onReveal}
                 onDelete={(id) => setPendingDeleteId(id)}
                 onCut={onCut}
+                onSetTags={onSetTags}
+                onCreateTag={onCreateTag}
               />
             ))}
           </div>

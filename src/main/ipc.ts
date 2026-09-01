@@ -8,16 +8,24 @@ import {
   listClips,
   renameClip,
   scanAndImportExisting,
+  setClipTags,
 } from "../shared/clips/index.js";
 import { IpcChannels, type AppConfigDto, type CutRange, type ScaleTarget } from "../shared/ipc.js";
 import { configuredObsScene, configuredReplaySeconds } from "../shared/obs.js";
 import { isPackagedApp } from "../shared/paths.js";
 import { getStorageInfo } from "../shared/storage.js";
+import {
+  createTag,
+  deleteTag,
+  listTags,
+  renameTag,
+} from "../shared/tags/store.js";
 import { setAppAutostartEnabled, shouldRunAutostart } from "./autostart.js";
 import {
   runCreateClip,
   runCutClip,
   sendClipsChanged,
+  sendLibraryChanged,
   startFolderWatcher,
   withClipUrls,
 } from "./clips/index.js";
@@ -182,6 +190,46 @@ export function registerIpc(): void {
       return result;
     },
   );
+
+  ipcMain.handle(
+    IpcChannels.setClipTags,
+    (_event, id: string, tagIds: string[]) => {
+      const ids = Array.isArray(tagIds) ? tagIds : [];
+      const result = setClipTags(getAppDataDir(), id, ids);
+      if (result.ok) {
+        sendLibraryChanged();
+        return { ok: true, clip: withClipUrls([result.clip])[0]! };
+      }
+      return result;
+    },
+  );
+
+  ipcMain.handle(IpcChannels.listTags, () => listTags(getAppDataDir()));
+
+  ipcMain.handle(IpcChannels.createTag, (_event, name: string) => {
+    const result = createTag(getAppDataDir(), typeof name === "string" ? name : "");
+    if (result.ok) sendLibraryChanged();
+    return result;
+  });
+
+  ipcMain.handle(
+    IpcChannels.renameTag,
+    (_event, id: string, name: string) => {
+      const result = renameTag(
+        getAppDataDir(),
+        id,
+        typeof name === "string" ? name : "",
+      );
+      if (result.ok) sendLibraryChanged();
+      return result;
+    },
+  );
+
+  ipcMain.handle(IpcChannels.deleteTag, (_event, id: string) => {
+    const result = deleteTag(getAppDataDir(), id);
+    if (result.ok) sendLibraryChanged();
+    return result;
+  });
 
   ipcMain.handle(IpcChannels.deleteClip, async (_event, id: string) => {
     const result = deleteClip(getAppDataDir(), id);

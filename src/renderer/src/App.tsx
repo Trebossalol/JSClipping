@@ -5,6 +5,7 @@ import type {
   AppUpdateInfo,
   ClipRecord,
   ObsStatus,
+  TagRecord,
 } from "@shared/ipc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
@@ -43,6 +44,7 @@ export function App() {
   const [config, setConfig] = useState<AppConfigDto | null>(null);
   const [obsStatus, setObsStatus] = useState<ObsStatus | null>(null);
   const [clips, setClips] = useState<ClipRecord[]>([]);
+  const [tags, setTags] = useState<TagRecord[]>([]);
   const [clippingBusy, setClippingBusy] = useState(false);
   const [clipMessage, setClipMessage] = useState<{
     text: string;
@@ -59,15 +61,17 @@ export function App() {
     const unsubs: Array<() => void> = [];
 
     async function boot(): Promise<void> {
-      const [cfg, status, list] = await Promise.all([
+      const [cfg, status, list, tagList] = await Promise.all([
         window.api.getConfig(),
         window.api.getObsStatus(),
         window.api.listClips(),
+        window.api.listTags(),
       ]);
       if (cancelled) return;
       setConfig(cfg);
       setObsStatus(status);
       setClips(list);
+      setTags(tagList);
       setSelectedId(list[0]?.id ?? null);
     }
 
@@ -77,6 +81,7 @@ export function App() {
     });
     unsubs.push(window.api.onObsStatus(setObsStatus));
     unsubs.push(window.api.onClipsChanged(setClips));
+    unsubs.push(window.api.onTagsChanged(setTags));
     unsubs.push(
       window.api.onHotkeysFailed((accelerators) => {
         toast.error(
@@ -150,6 +155,32 @@ export function App() {
     } finally {
       setClippingBusy(false);
     }
+  }
+
+  async function setClipTags(id: string, tagIds: string[]): Promise<void> {
+    setSelectedId(id);
+    const result = await window.api.setClipTags(id, tagIds);
+    if (!result.ok) {
+      toast.error(result.error);
+      setClips(await window.api.listClips());
+      return;
+    }
+    setClips((prev) => prev.map((c) => (c.id === id ? result.clip : c)));
+  }
+
+  async function createTag(name: string): Promise<TagRecord | null> {
+    const result = await window.api.createTag(name);
+    if (!result.ok) {
+      toast.error(result.error);
+      return null;
+    }
+    setTags((prev) => {
+      if (prev.some((tag) => tag.id === result.tag.id)) return prev;
+      return [...prev, result.tag].sort((a, b) =>
+        a.name.localeCompare(b.name, "de", { sensitivity: "base" }),
+      );
+    });
+    return result.tag;
   }
 
   async function openClip(id: string): Promise<void> {
@@ -284,6 +315,7 @@ export function App() {
                   />
                   <RecentClips
                     clips={clips}
+                    tags={tags}
                     filter={filter}
                     onFilterChange={setFilter}
                     selectedId={selectedId}
@@ -293,6 +325,8 @@ export function App() {
                     onReveal={revealClip}
                     onDelete={(id) => deleteClip(id)}
                     onCut={(id) => void openCutter(id)}
+                    onSetTags={(id, tagIds) => void setClipTags(id, tagIds)}
+                    onCreateTag={createTag}
                   />
                 </div>
               ) : (
@@ -302,6 +336,8 @@ export function App() {
                   replayMaxSeconds={obsStatus?.replayMaxSeconds ?? null}
                   onSave={saveConfig}
                   onGoToObsSettings={() => setView("obs")}
+                  tags={tags}
+                  clips={clips}
                 />
               )}
             </div>

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ClipRecord } from "../ipc.js";
 import { ensureDir } from "../paths.js";
+import { clipTagIds } from "../tags/names.js";
 
 function clipsJsonPath(appDataDir: string): string {
   return path.join(appDataDir, "clips.json");
@@ -52,6 +53,7 @@ function withLiveFileMeta(clip: ClipRecord): ClipRecord {
       namedByUser: resolveNamedByUser(clip),
       missing: false,
       fileSizeBytes: size,
+      tagIds: clipTagIds(clip),
     };
   } catch {
     return {
@@ -59,6 +61,7 @@ function withLiveFileMeta(clip: ClipRecord): ClipRecord {
       namedByUser: resolveNamedByUser(clip),
       missing: true,
       fileSizeBytes: null,
+      tagIds: clipTagIds(clip),
     };
   }
 }

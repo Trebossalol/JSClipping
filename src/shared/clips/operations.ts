@@ -17,6 +17,8 @@ import {
   writeStore,
 } from "./store.js";
 import type { ClipsStoreOptions } from "./types.js";
+import { sanitizeTagIds } from "../tags/store.js";
+import { clipTagIds } from "../tags/names.js";
 
 export function renameClip(
   appDataDir: string,
@@ -69,6 +71,22 @@ export function renameClip(
   clip.missing = false;
   writeStore(appDataDir, clips);
   return { ok: true, clip: { ...clip } };
+}
+
+export function setClipTags(
+  appDataDir: string,
+  id: string,
+  tagIds: string[],
+): { ok: true; clip: ClipRecord } | { ok: false; error: string } {
+  const clips = readStore(appDataDir);
+  const index = clips.findIndex((c) => c.id === id);
+  if (index < 0) return { ok: false, error: "Clip nicht gefunden." };
+
+  const clip = clips[index]!;
+  clip.tagIds = sanitizeTagIds(appDataDir, tagIds);
+  writeStore(appDataDir, clips);
+  const live = findClip(appDataDir, id);
+  return { ok: true, clip: live ?? { ...clip, tagIds: clip.tagIds } };
 }
 
 export function deleteClip(
@@ -155,6 +173,7 @@ export async function cutClipToNewFile(
     const record = await importClipFromFile(options, dest, {
       durationSeconds,
       namedByUser: Boolean(requested),
+      tagIds: clipTagIds(clip),
     });
     if (record) return { ok: true, clip: record };
 

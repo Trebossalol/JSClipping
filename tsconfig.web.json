@@ -22,6 +22,7 @@
     "src/renderer/src/**/*",
     "src/shared/ipc.ts",
     "src/shared/app.config.ts",
-    "src/shared/hotkeys.ts"
+    "src/shared/hotkeys.ts",
+    "src/shared/tags/names.ts"
   ]
 }

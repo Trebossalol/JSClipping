@@ -97,6 +97,14 @@ export interface ClipRecord {
   missing?: boolean;
   /** True once the user has set a custom title in the app. */
   namedByUser?: boolean;
+  /** Tag catalog ids assigned to this clip. Missing on legacy rows. */
+  tagIds?: string[];
+}
+
+export interface TagRecord {
+  id: string;
+  name: string;
+  createdAt: string;
 }
 
 export interface CutRange {
@@ -136,6 +144,12 @@ export const IpcChannels = {
   cutterOpenClip: "cutter:open-clip",
   openClip: "clips:open",
   revealClip: "clips:reveal",
+  setClipTags: "clips:set-tags",
+  listTags: "tags:list",
+  createTag: "tags:create",
+  renameTag: "tags:rename",
+  deleteTag: "tags:delete",
+  tagsChanged: "tags:changed",
   getStorage: "storage:get",
   startObs: "obs:start",
   stopObs: "obs:stop",
@@ -157,6 +171,14 @@ export type CreateClipResult =
 
 export type RenameClipResult =
   | { ok: true; clip: ClipRecord }
+  | { ok: false; error: string };
+
+export type SetClipTagsResult =
+  | { ok: true; clip: ClipRecord }
+  | { ok: false; error: string };
+
+export type TagResult =
+  | { ok: true; tag: TagRecord }
   | { ok: false; error: string };
 
 export type CutClipResult =
@@ -198,7 +220,13 @@ export interface ElectronApi {
   listClips(): Promise<ClipRecord[]>;
   onClipsChanged(callback: (clips: ClipRecord[]) => void): () => void;
   renameClip(id: string, name: string): Promise<RenameClipResult>;
+  setClipTags(id: string, tagIds: string[]): Promise<SetClipTagsResult>;
   deleteClip(id: string): Promise<{ ok: boolean; error?: string }>;
+  listTags(): Promise<TagRecord[]>;
+  createTag(name: string): Promise<TagResult>;
+  renameTag(id: string, name: string): Promise<TagResult>;
+  deleteTag(id: string): Promise<{ ok: boolean; error?: string }>;
+  onTagsChanged(callback: (tags: TagRecord[]) => void): () => void;
   cutClip(
     id: string,
     ranges: CutRange[],

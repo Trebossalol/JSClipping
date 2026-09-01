@@ -12,7 +12,10 @@ import {
   type ObsScenesResult,
   type ObsStatus,
   type RenameClipResult,
+  type SetClipTagsResult,
   type StorageInfoResult,
+  type TagRecord,
+  type TagResult,
   type AppUpdateInfo,
   type CheckForUpdatesResult,
 } from "../shared/ipc.js";
@@ -49,7 +52,24 @@ const api: ElectronApi = {
   },
   renameClip: (id: string, name: string): Promise<RenameClipResult> =>
     ipcRenderer.invoke(IpcChannels.renameClip, id, name),
+  setClipTags: (id: string, tagIds: string[]): Promise<SetClipTagsResult> =>
+    ipcRenderer.invoke(IpcChannels.setClipTags, id, tagIds),
   deleteClip: (id: string) => ipcRenderer.invoke(IpcChannels.deleteClip, id),
+  listTags: (): Promise<TagRecord[]> => ipcRenderer.invoke(IpcChannels.listTags),
+  createTag: (name: string): Promise<TagResult> =>
+    ipcRenderer.invoke(IpcChannels.createTag, name),
+  renameTag: (id: string, name: string): Promise<TagResult> =>
+    ipcRenderer.invoke(IpcChannels.renameTag, id, name),
+  deleteTag: (id: string) => ipcRenderer.invoke(IpcChannels.deleteTag, id),
+  onTagsChanged: (callback: (tags: TagRecord[]) => void) => {
+    const listener = (_event: IpcRendererEvent, tags: TagRecord[]): void => {
+      callback(tags);
+    };
+    ipcRenderer.on(IpcChannels.tagsChanged, listener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.tagsChanged, listener);
+    };
+  },
   cutClip: (
     id: string,
     ranges: CutRange[],
