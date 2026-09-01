@@ -1,10 +1,18 @@
-# Easy Clip
+<p align="center">
+  <img src="resources/logo.png" alt="Easy Clip" width="128">
+</p>
+
+<h1 align="center">Easy Clip</h1>
 
 Save the last few seconds of your game (or whatever OBS is capturing) as a clip — from a hotkey, a small on-screen **Quick Menu**, or a button in the app.
 
 Easy Clip talks to [OBS Studio](https://obsproject.com/), saves the Replay Buffer, then trims it with FFmpeg. The cut is a stream copy (no re-encode), so it is usually done in under a second.
 
 The app lives in the Windows tray. The interface is German; this guide is English.
+
+<p align="center">
+  <img src="docs/library.png" alt="Easy Clip library with clip thumbnails, titles, and OBS connected" width="800">
+</p>
 
 ---
 
@@ -44,6 +52,10 @@ Do this once. After that, start Easy Clip, start OBS (the app can do that for yo
 5. Check **Enable authentication**, pick a password, and save.
 6. In Easy Clip, open **Einstellungen → OBS**.
 7. Paste the same password into **Passwort** and click **Einstellungen speichern**.
+
+<p align="center">
+  <img src="docs/settings-obs.png" alt="Easy Clip OBS settings: WebSocket URL, password, clip scene, and replay buffer duration" width="800">
+</p>
 
 The Server URL (`ws://localhost:4455`) is already correct for a normal OBS install.
 
@@ -94,9 +106,17 @@ The buttons at the top of the library save the last *N* seconds.
 
 This is the small overlay that pops up over your game.
 
+<p align="center">
+  <img src="docs/quick-menu.png" alt="Quick Menu overlay: optional title field and clip length buttons" width="480">
+</p>
+
 1. Open **Einstellungen → Presets**.
 2. Click the **Schnellmenü** shortcut field and press a combo that includes **Ctrl**, **Alt**, or **Windows** plus a key (for example `Ctrl+Shift+C`).
 3. Save settings.
+
+<p align="center">
+  <img src="docs/settings-presets.png" alt="Preset lengths, Quick Menu shortcut, and per-length hotkeys" width="800">
+</p>
 
 When you press that shortcut:
 
@@ -140,6 +160,10 @@ The number is seconds. If Easy Clip is already in the tray, that running copy cl
 
 **Bibliothek** is your clip list:
 
+<p align="center">
+  <img src="docs/library.png" alt="Clip library with thumbnails, filters, and clip actions" width="800">
+</p>
+
 - Thumbnails; click a clip to play it
 - Edit the title to rename the file on disk
 - Filter **all**, **untitled**, or **last 24 hours**
@@ -152,6 +176,10 @@ New video files dropped into the output folder (`mp4`, `mkv`, `mov`, `webm`, `m4
 ## Clip cutter
 
 **Schneiden** opens a separate window.
+
+<p align="center">
+  <img src="docs/cutter.png" alt="Clip cutter with video preview, keep-ranges on the timeline, and save options" width="800">
+</p>
 
 - Play the clip, mark keep-ranges on the timeline, split at the playhead
 - Optionally downscale (never upscale)
