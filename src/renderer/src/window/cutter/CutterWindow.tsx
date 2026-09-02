@@ -19,10 +19,10 @@ import {
   PlusIcon,
   XIcon,
 } from "lucide-react";
-import { ClipCutter } from "../../components/ClipCutter";
-import { CutterClipPicker } from "../../components/CutterClipPicker";
-import { useTopLoader } from "../../components/TopLoadingBar";
-import logoUrl from "../../../../../resources/logo.svg"
+import { ClipCutter } from "@/components/ClipCutter";
+import { CutterClipPicker } from "@/components/CutterClipPicker";
+import { useTopLoader } from "@/components/TopLoadingBar";
+import logoUrl from "@ressources/logo.svg"
 
 export function isCutterRoute(): boolean {
   const hash = window.location.hash.replace(/^#/, "");

@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 import {
   clipPresetsFromSeconds,
   getClipAvailability,
-} from "./ClipActions";
-import { ObsStatusPill } from "./settings/sections/obs/ObsStatusPill";
-import { viewCopy, type AppView } from "./AppSidebar";
+} from "@/components/ClipActions";
+import { ObsStatusPill } from "@/components/settings/sections/obs/ObsStatusPill";
+import { viewCopy, type AppView } from "@/components/AppSidebar";
 
 interface AppHeaderProps {
   view: AppView;

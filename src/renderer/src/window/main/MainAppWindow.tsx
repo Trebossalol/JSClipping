@@ -22,18 +22,18 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { formatDuration } from "../../format";
+import { formatDuration } from "@/format";
 import { formatHotkey } from "@shared/hotkeys";
-import { AppSidebar, type AppView } from "../../components/AppSidebar";
-import { AppHeader } from "../../components/CommandBar";
-import { ClipActions } from "../../components/ClipActions";
+import { AppSidebar, type AppView } from "@/components/AppSidebar";
+import { AppHeader } from "@/components/CommandBar";
+import { ClipActions } from "@/components/ClipActions";
 import {
   RecentClips,
   type ClipFilter,
-} from "../../components/RecentClips";
-import { SettingsPanel } from "../../components/settings/SettingsPanel";
-import { showUpdateAvailableToast } from "../../components/settings/sections/about/AboutSection";
-import { useTopLoader } from "../../components/TopLoadingBar";
+} from "@/components/RecentClips";
+import { SettingsPanel } from "@/components/settings/SettingsPanel";
+import { showUpdateAvailableToast } from "@/components/settings/sections/about/AboutSection";
+import { useTopLoader } from "@/components/TopLoadingBar";
 
 function untitledCount(clips: ClipRecord[]): number {
   return clips.filter((c) => !c.namedByUser && !c.missing).length;

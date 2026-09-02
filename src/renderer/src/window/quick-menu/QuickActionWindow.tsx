@@ -31,8 +31,8 @@ import {
   TypeIcon,
   UnplugIcon,
 } from "lucide-react";
-import { getClipAvailability } from "../../components/ClipActions";
-import logoUrl from "../../../../../resources/logo.svg";
+import { getClipAvailability } from "@/components/ClipActions";
+import logoUrl from "@ressources/logo.svg";
 
 export function isQuickActionRoute(): boolean {
   return window.location.hash.replace(/^#/, "") === "quick";

@@ -17,24 +17,24 @@ import type { AppConfigDto, ClipPreset, ClipRecord, TagRecord } from "@shared/ip
 import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
 import { SaveIcon } from "lucide-react";
-import type { SettingsSection } from "../AppSidebar";
-import { AboutSection } from "./sections/about/AboutSection";
-import { AutostartSection } from "./sections/autostart/AutostartSection";
-import { ObsSection } from "./sections/obs/ObsSection";
-import { PresetsSection } from "./sections/presets/PresetsSection";
+import type { SettingsSection } from "@/components/AppSidebar";
+import { AboutSection } from "@/components/settings/sections/about/AboutSection";
+import { AutostartSection } from "@/components/settings/sections/autostart/AutostartSection";
+import { ObsSection } from "@/components/settings/sections/obs/ObsSection";
+import { PresetsSection } from "@/components/settings/sections/presets/PresetsSection";
 import {
   SettingsFormProvider,
   type SettingsFormValue,
 } from "@/context/settings-form-context";
-import { StorageSection } from "./sections/storage/StorageSection";
-import { TagsSection } from "./sections/tags/TagsSection";
+import { StorageSection } from "@/components/settings/sections/storage/StorageSection";
+import { TagsSection } from "@/components/settings/sections/tags/TagsSection";
 import {
   collectClipPresets,
   draftsFromPresets,
   nextPresetSeconds,
   parseDurationParts,
   type PresetDraft,
-} from "./presets";
+} from "@/components/settings/presets";
 
 function replayDraftFrom(total: number | null | undefined): {
   minutes: string;

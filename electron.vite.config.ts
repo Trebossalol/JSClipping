@@ -24,6 +24,7 @@ export default defineConfig({
       alias: {
         "@": resolve("src/renderer/src"),
         "@shared": resolve("src/shared"),
+        "@ressources": resolve("resources"),
       },
     },
   },

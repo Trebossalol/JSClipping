@@ -61,7 +61,7 @@ import {
   formatDuration,
   formatPixels,
   formatResolution,
-} from "../format";
+} from "@/format";
 import { DeleteClipDialog } from "./DeleteClipDialog";
 import { ClipTagPicker } from "./settings/sections/tags/ClipTagPicker";
 
@@ -225,7 +225,7 @@ function ClipCard({
             </div>
           )}
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 via-background/15 to-transparent"
+            className="pointer-events-none absolute inset-0 bg-linear-to-t from-background/85 via-background/15 to-transparent"
             aria-hidden
           />
           {resolution ? (
