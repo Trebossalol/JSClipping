@@ -42,56 +42,38 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Button } from "../ui/button";
+} from "../../ui/dropdown-menu";
+import { Button } from "../../ui/button";
 import { formatDuration } from "@/format";
 import {
   MAX_OBS_REPLAY_SECONDS,
   MIN_OBS_REPLAY_SECONDS,
 } from "@shared/app.config";
+import { useSettingsForm } from "@/context/settings-form-context";
 
-interface ObsSectionProps {
-  url: string;
-  password: string;
-  exePath: string;
-  scene: string;
-  replayMinutes: string;
-  replaySeconds: string;
-  replayInvalid: boolean;
-  liveReplaySeconds: number | null;
-  showPassword: boolean;
-  onUrlChange: (value: string) => void;
-  onPasswordChange: (value: string) => void;
-  onExePathChange: (value: string) => void;
-  onBrowseExe: () => void;
-  onSceneChange: (value: string) => void;
-  onReplayMinutesChange: (value: string) => void;
-  onReplaySecondsChange: (value: string) => void;
-  onTogglePassword: () => void;
-}
+export function ObsSection() {
+  const {
+    obsUrl,
+    obsPassword,
+    obsExePath,
+    obsScene,
+    obsReplayMinutes,
+    obsReplaySeconds,
+    replayInvalid,
+    showPassword,
+    onObsUrlChange,
+    onObsPasswordChange,
+    onObsExePathChange,
+    onBrowseObsExe,
+    onObsSceneChange,
+    onObsReplayMinutesChange,
+    onObsReplaySecondsChange,
+    onTogglePassword,
+  } = useSettingsForm();
 
-export function ObsSection({
-  url,
-  password,
-  exePath,
-  scene,
-  replayMinutes,
-  replaySeconds,
-  replayInvalid,
-  liveReplaySeconds,
-  showPassword,
-  onUrlChange,
-  onPasswordChange,
-  onExePathChange,
-  onBrowseExe,
-  onSceneChange,
-  onReplayMinutesChange,
-  onReplaySecondsChange,
-  onTogglePassword,
-}: ObsSectionProps) {
   const [scenes, setScenes] = useState<string[]>([]);
   const [obsConnected, setObsConnected] = useState(false);
-  const setupPending = password === "CHANGE_ME";
+  const setupPending = obsPassword === "CHANGE_ME";
 
   useEffect(() => {
     let cancelled = false;
@@ -120,10 +102,10 @@ export function ObsSection({
 
   const sceneOptions = useMemo(() => {
     const names = [...scenes];
-    const selected = scene.trim();
+    const selected = obsScene.trim();
     if (selected && !names.includes(selected)) names.unshift(selected);
     return names;
-  }, [scene, scenes]);
+  }, [obsScene, scenes]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,41 +124,11 @@ export function ObsSection({
                 </CardTitle>
               </AccordionTrigger>
               <CardDescription>
-                Verbindungseinstellungen zum OBS WebSocket Server.
+                Verbindungseinstellungen zu OBS Studio.
               </CardDescription>
             </CardHeader>
             <AccordionContent>
               <CardContent className="flex flex-col gap-4 pt-4">
-                <Alert variant="info">
-                  <InfoIcon />
-                  <AlertTitle>Anleitung</AlertTitle>
-                  <AlertDescription>
-                    <ol className="ml-5 list-decimal space-y-1">
-                      <li>
-                        OBS Studio installieren: Stelle sicher, dass die neuste
-                        Version von OBS Studio installiert ist.
-                      </li>
-                      <li>
-                        Öffne OBS Studio und klicke auf Werkzeuge → WebSocket
-                        Server Einstellungen
-                      </li>
-                      <li>
-                        Setze oben das Häkchen bei{" "}
-                        <code>WebSocket-Server aktivieren</code>
-                      </li>
-                      <li>
-                        Denke dir ein Passwort aus und trage es in das Feld{" "}
-                        <code>Serverpasswort</code> ein.
-                        <br />
-                        Speichere die Einstellungen und schließe das Fenster.
-                      </li>
-                      <li>
-                        Trage das gleiche Passwort in die Einstellungen von
-                        EasyClip ein und speichere die Einstellungen.
-                      </li>
-                    </ol>
-                  </AlertDescription>
-                </Alert>
                 <FieldGroup>
                   <Field>
                     <FieldLabel htmlFor="obs-url">Server</FieldLabel>
@@ -185,8 +137,8 @@ export function ObsSection({
                       type="text"
                       inputMode="url"
                       autoComplete="off"
-                      value={url}
-                      onChange={(e) => onUrlChange(e.target.value)}
+                      value={obsUrl}
+                      onChange={(e) => onObsUrlChange(e.target.value)}
                     />
                     <FieldDescription>
                       Ändere diese Einstellung nur, wenn du weißt was du tust.
@@ -199,8 +151,8 @@ export function ObsSection({
                         id="obs-password"
                         type={showPassword ? "text" : "password"}
                         autoComplete="off"
-                        value={password}
-                        onChange={(e) => onPasswordChange(e.target.value)}
+                        value={obsPassword}
+                        onChange={(e) => onObsPasswordChange(e.target.value)}
                       />
                       <InputGroupAddon align="inline-end">
                         <InputGroupButton
@@ -232,14 +184,14 @@ export function ObsSection({
                         type="text"
                         autoComplete="off"
                         placeholder="C:\Program Files\obs-studio\bin\64bit\obs64.exe"
-                        value={exePath}
-                        onChange={(e) => onExePathChange(e.target.value)}
+                        value={obsExePath}
+                        onChange={(e) => onObsExePathChange(e.target.value)}
                       />
                       <InputGroupAddon align="inline-end">
                         <InputGroupButton
                           type="button"
                           size="xs"
-                          onClick={onBrowseExe}
+                          onClick={onBrowseObsExe}
                         >
                           <FolderIcon data-icon="inline-start" />
                           Durchsuchen
@@ -281,23 +233,23 @@ export function ObsSection({
                           type="button"
                           variant="outline"
                           className={
-                            scene
+                            obsScene
                               ? "justify-start"
                               : "justify-start text-muted-foreground"
                           }
                           disabled={!obsConnected}
                         >
-                          {scene || "Keine Szene ausgewählt"}
+                          {obsScene || "Keine Szene ausgewählt"}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => onSceneChange("")}>
+                        <DropdownMenuItem onClick={() => onObsSceneChange("")}>
                           Keine Szene
                         </DropdownMenuItem>
                         {sceneOptions.map((name) => (
                           <DropdownMenuItem
                             key={name}
-                            onClick={() => onSceneChange(name)}
+                            onClick={() => onObsSceneChange(name)}
                           >
                             {name}
                           </DropdownMenuItem>
@@ -323,8 +275,8 @@ export function ObsSection({
                           step={1}
                           aria-label="Minuten"
                           aria-invalid={replayInvalid}
-                          value={replayMinutes}
-                          onChange={(e) => onReplayMinutesChange(e.target.value)}
+                          value={obsReplayMinutes}
+                          onChange={(e) => onObsReplayMinutesChange(e.target.value)}
                         />
                         <InputGroupAddon align="inline-end">
                           <InputGroupText>Min</InputGroupText>
@@ -340,8 +292,8 @@ export function ObsSection({
                           step={1}
                           aria-label="Sekunden"
                           aria-invalid={replayInvalid}
-                          value={replaySeconds}
-                          onChange={(e) => onReplaySecondsChange(e.target.value)}
+                          value={obsReplaySeconds}
+                          onChange={(e) => onObsReplaySecondsChange(e.target.value)}
                         />
                         <InputGroupAddon align="inline-end">
                           <InputGroupText>Sek</InputGroupText>
@@ -361,10 +313,10 @@ export function ObsSection({
                     )}
                   </Field>
                   <Alert variant={'warning'}>
-                      <TriangleAlertIcon/>
+                    <TriangleAlertIcon />
                     <AlertDescription>
-                    Bitte beachte, dass ein höherer Wert mehr Arbeitsspeicher benötigt. Um die geschätzte Arbeitsspeichermenge einzusehen, 
-                    öffne OBS und klicke auf Datei → Einstellungen → Ausgabe → Replaypuffer.
+                      Bitte beachte, dass ein höherer Wert mehr Arbeitsspeicher benötigt. Um die geschätzte Arbeitsspeichermenge einzusehen,
+                      öffne OBS und klicke auf Datei → Einstellungen → Ausgabe → Replaypuffer.
                     </AlertDescription>
                   </Alert>
                 </FieldGroup>

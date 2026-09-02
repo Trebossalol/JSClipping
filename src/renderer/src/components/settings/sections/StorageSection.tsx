@@ -19,19 +19,16 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { FolderIcon, FolderOutputIcon, InfoIcon } from "lucide-react";
-import { StoragePanel } from "../StoragePanel";
+import { StoragePanel } from "../../StoragePanel";
+import { useSettingsForm } from "@/context/settings-form-context";
 
-interface StorageSectionProps {
-  outputDir: string;
-  onOutputDirChange: (value: string) => void;
-  onBrowse: () => void;
-}
+export function StorageSection() {
+  const {
+    outputDir,
+    onOutputDirChange,
+    onBrowseOutputDir,
+  } = useSettingsForm();
 
-export function StorageSection({
-  outputDir,
-  onOutputDirChange,
-  onBrowse,
-}: StorageSectionProps) {
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -41,32 +38,10 @@ export function StorageSection({
             Ausgabe
           </CardTitle>
           <CardDescription>
-            Gleicher Ordner wie der OBS-Aufnahmepfad.
+            Gleicher Ordner wie der Aufnahmepfad von OBS Studio.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Alert variant="info">
-            <InfoIcon />
-            <AlertTitle>Anleitung</AlertTitle>
-            <AlertDescription>
-              <ol className="list-decimal ml-5 space-y-1">
-                <li>
-                  Öffne OBS Studio und gehe zu Datei → Einstellungen → Ausgabe → Aufnahme
-                </li>
-                <li>
-                  Setze den <code>Aufnahmepfad</code> auf denselben Ordner wie
-                  den Clip-Ausgabeordner oben.
-                  <br />
-                  Im Ausgabe-Modus <code>Erweitert</code> findest du den Pfad im
-                  Reiter <code>Aufnahme</code>.
-                </li>
-                <li>
-                  Speichere die Einstellungen in OBS mit <code>Anwenden</code>{" "}
-                  und <code>OK</code>.
-                </li>
-              </ol>
-            </AlertDescription>
-          </Alert>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="clip-output-dir">
@@ -85,7 +60,7 @@ export function StorageSection({
                   <InputGroupButton
                     type="button"
                     size="xs"
-                    onClick={onBrowse}
+                    onClick={onBrowseOutputDir}
                   >
                     <FolderIcon data-icon="inline-start" />
                     Durchsuchen
@@ -93,8 +68,7 @@ export function StorageSection({
                 </InputGroupAddon>
               </InputGroup>
               <FieldDescription>
-                Easy Clip überwacht diesen Ordner, um neue Clips zu erkennen,
-                und sortiert sie nach Jahr und Monat.
+                Easy Clip überwacht diesen Ordner, um neue Clips zu erkennen.
               </FieldDescription>
             </Field>
           </FieldGroup>

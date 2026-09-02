@@ -32,7 +32,7 @@ import {
   type ClipFilter,
 } from "./components/RecentClips";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
-import { showUpdateAvailableToast } from "./components/settings/AboutSection";
+import { showUpdateAvailableToast } from "./components/settings/sections/AboutSection";
 import { useTopLoader } from "./components/TopLoadingBar";
 
 function untitledCount(clips: ClipRecord[]): number {
