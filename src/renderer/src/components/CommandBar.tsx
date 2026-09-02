@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 import {
   clipPresetsFromSeconds,
   getClipAvailability,
-} from "./ClipActions";
-import { ObsStatusPill } from "./ObsStatusPill";
-import { viewCopy, type AppView } from "./AppSidebar";
+} from "@/components/ClipActions";
+import { ObsStatusPill } from "@/components/settings/sections/obs/ObsStatusPill";
+import { viewCopy, type AppView } from "@/components/AppSidebar";
 
 interface AppHeaderProps {
   view: AppView;
@@ -89,8 +89,8 @@ export function AppHeader({
                     overBuffer && replayMax != null
                       ? `Länger als der OBS-Puffer (${formatDuration(replayMax)})`
                       : [disabledReason ?? hint, hotkeyLabel]
-                          .filter(Boolean)
-                          .join(" · ")
+                        .filter(Boolean)
+                        .join(" · ")
                   }
                   onClick={() => onCreate(seconds)}
                 >

@@ -26,7 +26,7 @@ import {
   downscaleResolutions,
   estimateOutputBytes,
   resolutionKey,
-} from "../format";
+} from "@/format";
 import {
   ChevronDownIcon,
   MonitorIcon,
@@ -531,22 +531,22 @@ export function ClipCutter({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
       <div className="border-b border-white/10 bg-card/55 px-4 py-3 backdrop-blur-xl">
-          <Input
-            value={clipName}
-            disabled={busy}
-            aria-label="Clip-Name"
-            title="Name des gespeicherten Clips"
-            placeholder="Clip-Name"
-            className="h-8"
-            onChange={(e) => setClipName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-          />
-        </div>
+        <Input
+          value={clipName}
+          disabled={busy}
+          aria-label="Clip-Name"
+          title="Name des gespeicherten Clips"
+          placeholder="Clip-Name"
+          className="h-8"
+          onChange={(e) => setClipName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+      </div>
 
       <div className="relative min-h-0 flex-1 p-4 pb-0">
         <div className="relative h-full overflow-hidden rounded-lg bg-background ring-1 ring-white/10">
@@ -766,15 +766,14 @@ export function ClipCutter({
               >
                 <MonitorIcon data-icon="inline-start" />
                 {activeScaleKey === ORIGINAL_SCALE
-                  ? `Original${
-                      sourceSize
-                        ? ` · ${formatResolution(sourceSize.width, sourceSize.height)}`
-                        : ""
-                    }`
+                  ? `Original${sourceSize
+                    ? ` · ${formatResolution(sourceSize.width, sourceSize.height)}`
+                    : ""
+                  }`
                   : (downscales.find(
-                      (item) =>
-                        resolutionKey(item.width, item.height) === activeScaleKey,
-                    )?.label ?? "Auflösung")}
+                    (item) =>
+                      resolutionKey(item.width, item.height) === activeScaleKey,
+                  )?.label ?? "Auflösung")}
                 <ChevronDownIcon data-icon="inline-end" />
               </Button>
             </DropdownMenuTrigger>

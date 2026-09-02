@@ -9,26 +9,21 @@ import {
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { APP_NAME } from "@shared/app.config";
 import { InfoIcon, PowerIcon } from "lucide-react";
+import { useSettingsForm } from "@/context/settings-form-context";
 
-interface AutostartSectionProps {
-  autostart: boolean;
-  onAutostartChange: (value: boolean) => void;
-  /** `null` while the packaged check is still loading. */
-  available: boolean | null;
-}
+export function AutostartSection() {
+  const {
+    autostart,
+    onAutostartChange,
+    autostartAvailable,
+  } = useSettingsForm();
 
-export function AutostartSection({
-  autostart,
-  onAutostartChange,
-  available,
-}: AutostartSectionProps) {
   return (
     <Card>
       <CardHeader>
@@ -37,40 +32,34 @@ export function AutostartSection({
           Autostart
         </CardTitle>
         <CardDescription>
-          Startet {APP_NAME} und OBS mit Wiederholungspuffer, minimiert
-          in den Infobereich.
+          Startet {APP_NAME} uns OBS automatisch beim Windows-Start.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {available === false ? (
-          <Alert variant="info">
+        {autostartAvailable === false ? (
+          <Alert variant="warning">
             <InfoIcon />
-            <AlertTitle>Nur in der installierten App</AlertTitle>
+            <AlertTitle>Nicht verfügbar</AlertTitle>
             <AlertDescription>
-              Autostart (Windows-Anmeldung und OBS) funktioniert nur in der
-              installierten Version, nicht während der Entwicklung.
+              In der Entwicklungsumgebung ist diese Funktion nicht verfügbar.
             </AlertDescription>
           </Alert>
         ) : null}
         <FieldGroup>
           <Field
             orientation="horizontal"
-            data-disabled={available === true ? undefined : "true"}
+            data-disabled={autostartAvailable === true ? undefined : "true"}
           >
             <FieldContent>
               <FieldLabel htmlFor="autostart">
                 Automatischer Start
               </FieldLabel>
-              <FieldDescription>
-                {APP_NAME} und OBS werden automatisch beim Windows-Start
-                ausgeführt.
-              </FieldDescription>
             </FieldContent>
             <Switch
               id="autostart"
               checked={autostart}
               onCheckedChange={onAutostartChange}
-              disabled={available !== true}
+              disabled={autostartAvailable !== true}
             />
           </Field>
         </FieldGroup>

@@ -21,8 +21,8 @@ import {
   XCircleIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { startObsWithAutostart, stopObsProcess } from "./ClipActions";
-import { useTopLoader } from "./TopLoadingBar";
+import { startObsWithAutostart, stopObsProcess } from "@/components/ClipActions";
+import { useTopLoader } from "@/components/TopLoadingBar";
 
 interface ObsStatusPillProps {
   status: ObsStatus | null;

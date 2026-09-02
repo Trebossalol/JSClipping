@@ -10,7 +10,7 @@ import {
   TagsIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import logoUrl from "../../../../resources/logo.svg";
+import logoUrl from "@ressources/logo.svg";
 import {
   Sidebar,
   SidebarContent,

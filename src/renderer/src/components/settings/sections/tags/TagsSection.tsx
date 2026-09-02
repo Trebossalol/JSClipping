@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/empty";
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
@@ -40,17 +39,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PlusIcon, TagsIcon, Trash2Icon } from "lucide-react";
-import type { ClipRecord, TagRecord } from "@shared/ipc";
+import type { TagRecord } from "@shared/ipc";
 import {
   clipTagIds,
   MAX_TAG_NAME_LENGTH,
   normalizeTagName,
 } from "@shared/tags/names";
-
-interface TagsSectionProps {
-  tags: TagRecord[];
-  clips: ClipRecord[];
-}
+import { useSettingsForm } from "@/context/settings-form-context";
 
 function usageLabel(count: number): string {
   return count === 1 ? "1 Clip" : `${count} Clips`;
@@ -125,7 +120,8 @@ function TagRow({ tag, usage, onRename, onAskDelete }: TagRowProps) {
   );
 }
 
-export function TagsSection({ tags, clips }: TagsSectionProps) {
+export function TagsSection() {
+  const { tags, clips } = useSettingsForm();
   const [draft, setDraft] = useState("");
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<TagRecord | null>(null);
@@ -187,59 +183,47 @@ export function TagsSection({ tags, clips }: TagsSectionProps) {
             Tags
           </CardTitle>
           <CardDescription>
-            Tags bleiben am Clip, auch wenn du ihn umbenennst. Sie ändern den
-            Speicherort der Datei nicht.
+            Tags helfen dir, deine Clips besser zu organisieren und zu filtern.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="new-tag-name">Neues Tag</FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id="new-tag-name"
-                    value={draft}
-                    maxLength={MAX_TAG_NAME_LENGTH}
-                    autoComplete="off"
-                    disabled={creating}
-                    placeholder="z. B. Highlight"
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void handleCreate();
-                      }
-                    }}
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <InputGroupButton
-                      type="button"
-                      size="xs"
-                      disabled={creating || !normalizeTagName(draft)}
-                      onClick={() => void handleCreate()}
-                    >
-                      <PlusIcon data-icon="inline-start" />
-                      Anlegen
-                    </InputGroupButton>
-                  </InputGroupAddon>
-                </InputGroup>
-                <FieldDescription>
-                  Du kannst Tags auch direkt an einem Clip in der Bibliothek
-                  anlegen und zuweisen.
-                </FieldDescription>
-              </Field>
-            </FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="new-tag-name">Neues Tag</FieldLabel>
+              <InputGroup>
+                <InputGroupInput
+                  id="new-tag-name"
+                  value={draft}
+                  maxLength={MAX_TAG_NAME_LENGTH}
+                  autoComplete="off"
+                  disabled={creating}
+                  placeholder="z. B. Highlight"
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleCreate();
+                    }
+                  }}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    type="button"
+                    size="xs"
+                    disabled={creating || !normalizeTagName(draft)}
+                    onClick={() => void handleCreate()}
+                  >
+                    <PlusIcon data-icon="inline-start" />
+                    Anlegen
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+            </Field>
+          </FieldGroup>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Vorhandene Tags</CardTitle>
-          <CardDescription>
-            Umbenennen übernimmt den Namen in der Bibliothek. Löschen entfernt
-            das Tag von allen Clips.
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           {tags.length === 0 ? (
             <Empty className="border border-dashed border-white/10">
@@ -254,7 +238,7 @@ export function TagsSection({ tags, clips }: TagsSectionProps) {
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
               {tags.map((tag) => (
                 <TagRow
                   key={tag.id}

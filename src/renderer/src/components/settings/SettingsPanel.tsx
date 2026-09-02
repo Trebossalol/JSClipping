@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -10,20 +17,24 @@ import type { AppConfigDto, ClipPreset, ClipRecord, TagRecord } from "@shared/ip
 import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
 import { SaveIcon } from "lucide-react";
-import type { SettingsSection } from "../AppSidebar";
-import { AboutSection } from "./AboutSection";
-import { AutostartSection } from "./AutostartSection";
-import { ObsSection } from "./ObsSection";
-import { PresetsSection } from "./PresetsSection";
-import { StorageSection } from "./StorageSection";
-import { TagsSection } from "./TagsSection";
+import type { SettingsSection } from "@/components/AppSidebar";
+import { AboutSection } from "@/components/settings/sections/about/AboutSection";
+import { AutostartSection } from "@/components/settings/sections/autostart/AutostartSection";
+import { ObsSection } from "@/components/settings/sections/obs/ObsSection";
+import { PresetsSection } from "@/components/settings/sections/presets/PresetsSection";
+import {
+  SettingsFormProvider,
+  type SettingsFormValue,
+} from "@/context/settings-form-context";
+import { StorageSection } from "@/components/settings/sections/storage/StorageSection";
+import { TagsSection } from "@/components/settings/sections/tags/TagsSection";
 import {
   collectClipPresets,
   draftsFromPresets,
   nextPresetSeconds,
   parseDurationParts,
   type PresetDraft,
-} from "./presets";
+} from "@/components/settings/presets";
 
 function replayDraftFrom(total: number | null | undefined): {
   minutes: string;
@@ -175,74 +186,87 @@ export function SettingsPanel({
     setObsReplaySeconds(live.seconds);
   }, [config.OBS_REPLAY_SECONDS, replayMaxSeconds]);
 
-  async function handleBrowse(): Promise<void> {
+  const handleBrowse = useCallback(async (): Promise<void> => {
     const dir = await window.api.pickOutputDir();
     if (dir) setOutputDir(dir);
-  }
+  }, []);
 
-  async function handleBrowseObsExe(): Promise<void> {
+  const handleBrowseObsExe = useCallback(async (): Promise<void> => {
     const exe = await window.api.pickObsExe();
     if (exe) setObsExePath(exe);
-  }
+  }, []);
 
-  function applyPresets(values: ClipPreset[]): void {
+  const applyPresets = useCallback((values: ClipPreset[]): void => {
     const { drafts, nextId } = draftsFromPresets(
       values,
       nextPresetId.current,
     );
     nextPresetId.current = nextId;
     setClipPresets(drafts);
-  }
+  }, []);
 
-  function updatePreset(
-    id: number,
-    field: "minutes" | "seconds",
-    value: string,
-  ): void {
-    setClipPresets((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
-    );
-  }
+  const updatePreset = useCallback(
+    (id: number, field: "minutes" | "seconds", value: string): void => {
+      setClipPresets((rows) =>
+        rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+      );
+    },
+    [],
+  );
 
-  function updatePresetHotkey(id: number, hotkey: string | null): void {
-    setClipPresets((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, hotkey } : row)),
-    );
-  }
+  const updatePresetHotkey = useCallback(
+    (id: number, hotkey: string | null): void => {
+      setClipPresets((rows) =>
+        rows.map((row) => (row.id === id ? { ...row, hotkey } : row)),
+      );
+    },
+    [],
+  );
 
-  function movePreset(index: number, direction: -1 | 1): void {
-    const next = index + direction;
-    if (next < 0 || next >= clipPresets.length) return;
+  const movePreset = useCallback(
+    (index: number, direction: -1 | 1): void => {
+      setClipPresets((rows) => {
+        const next = index + direction;
+        if (next < 0 || next >= rows.length) return rows;
+        const copy = [...rows];
+        const [item] = copy.splice(index, 1);
+        if (!item) return rows;
+        copy.splice(next, 0, item);
+        return copy;
+      });
+    },
+    [],
+  );
+
+  const addPreset = useCallback((): void => {
     setClipPresets((rows) => {
-      const copy = [...rows];
-      const [item] = copy.splice(index, 1);
-      if (!item) return rows;
-      copy.splice(next, 0, item);
-      return copy;
+      if (rows.length >= MAX_CLIP_PRESETS) return rows;
+      const existing = rows
+        .map((row) => parseDurationParts(row.minutes, row.seconds, maxSeconds))
+        .filter((n): n is number => n != null);
+      const total = nextPresetSeconds(existing, maxSeconds);
+      const id = nextPresetId.current++;
+      return [
+        ...rows,
+        {
+          id,
+          minutes: String(Math.floor(total / 60)),
+          seconds: String(total % 60),
+          hotkey: null,
+        },
+      ];
     });
-  }
+  }, [maxSeconds]);
 
-  function addPreset(): void {
-    if (clipPresets.length >= MAX_CLIP_PRESETS) return;
-    const existing = clipPresets
-      .map((row) => parseDurationParts(row.minutes, row.seconds, maxSeconds))
-      .filter((n): n is number => n != null);
-    const total = nextPresetSeconds(existing, maxSeconds);
-    const id = nextPresetId.current++;
-    setClipPresets((rows) => [
-      ...rows,
-      {
-        id,
-        minutes: String(Math.floor(total / 60)),
-        seconds: String(total % 60),
-        hotkey: null,
-      },
-    ]);
-  }
+  const removePreset = useCallback((id: number): void => {
+    setClipPresets((rows) =>
+      rows.length <= 1 ? rows : rows.filter((row) => row.id !== id),
+    );
+  }, []);
 
-  function removePreset(id: number): void {
-    setClipPresets((rows) => (rows.length <= 1 ? rows : rows.filter((row) => row.id !== id)));
-  }
+  const togglePassword = useCallback((): void => {
+    setShowPassword((s) => !s);
+  }, []);
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -329,86 +353,106 @@ export function SettingsPanel({
     }
   }
 
+  const form = useMemo<SettingsFormValue>(
+    () => ({
+      obsUrl,
+      obsPassword,
+      obsExePath,
+      obsScene,
+      obsReplayMinutes,
+      obsReplaySeconds,
+      replayInvalid: !parseReplayBufferSeconds(obsReplayMinutes, obsReplaySeconds)
+        .ok,
+      showPassword,
+      onObsUrlChange: setObsUrl,
+      onObsPasswordChange: setObsPassword,
+      onObsExePathChange: setObsExePath,
+      onBrowseObsExe: () => void handleBrowseObsExe(),
+      onObsSceneChange: setObsScene,
+      onObsReplayMinutesChange: setObsReplayMinutes,
+      onObsReplaySecondsChange: setObsReplaySeconds,
+      onTogglePassword: togglePassword,
+
+      outputDir,
+      onOutputDirChange: setOutputDir,
+      onBrowseOutputDir: () => void handleBrowse(),
+
+      clipPresets,
+      maxSeconds,
+      quickActionHotkey,
+      onQuickActionHotkeyChange: setQuickActionHotkey,
+      onGoToObsSettings,
+      onUpdatePreset: updatePreset,
+      onUpdatePresetHotkey: updatePresetHotkey,
+      onMovePreset: movePreset,
+      onAddPreset: addPreset,
+      onRemovePreset: removePreset,
+      onResetPresets: applyPresets,
+
+      autostart,
+      onAutostartChange: setAutostart,
+      autostartAvailable: packaged,
+
+      checkForUpdates,
+      onCheckForUpdatesChange: setCheckForUpdates,
+
+      tags,
+      clips,
+    }),
+    [
+      obsUrl,
+      obsPassword,
+      obsExePath,
+      obsScene,
+      obsReplayMinutes,
+      obsReplaySeconds,
+      showPassword,
+      handleBrowseObsExe,
+      togglePassword,
+      outputDir,
+      handleBrowse,
+      clipPresets,
+      maxSeconds,
+      quickActionHotkey,
+      onGoToObsSettings,
+      updatePreset,
+      updatePresetHotkey,
+      movePreset,
+      addPreset,
+      removePreset,
+      applyPresets,
+      autostart,
+      packaged,
+      checkForUpdates,
+      tags,
+      clips,
+    ],
+  );
+
   return (
-    <form
-      className="mx-auto flex min-h-full w-full max-w-200 flex-col px-5 pt-5"
-      noValidate
-      onSubmit={(e) => void handleSubmit(e)}
-    >
-      <div className="flex flex-1 flex-col gap-4 pb-4">
-      {section === "obs" ? (
-        <ObsSection
-          url={obsUrl}
-          password={obsPassword}
-          exePath={obsExePath}
-          scene={obsScene}
-          replayMinutes={obsReplayMinutes}
-          replaySeconds={obsReplaySeconds}
-          replayInvalid={
-            !parseReplayBufferSeconds(obsReplayMinutes, obsReplaySeconds).ok
-          }
-          liveReplaySeconds={maxSeconds}
-          showPassword={showPassword}
-          onUrlChange={setObsUrl}
-          onPasswordChange={setObsPassword}
-          onExePathChange={setObsExePath}
-          onBrowseExe={() => void handleBrowseObsExe()}
-          onSceneChange={setObsScene}
-          onReplayMinutesChange={setObsReplayMinutes}
-          onReplaySecondsChange={setObsReplaySeconds}
-          onTogglePassword={() => setShowPassword((s) => !s)}
-        />
-      ) : null}
-
-      {section === "storage" ? (
-        <StorageSection
-          outputDir={outputDir}
-          onOutputDirChange={setOutputDir}
-          onBrowse={() => void handleBrowse()}
-        />
-      ) : null}
-
-      {section === "tags" ? <TagsSection tags={tags} clips={clips} /> : null}
-
-      {section === "presets" ? (
-        <PresetsSection
-          clipPresets={clipPresets}
-          maxSeconds={maxSeconds}
-          quickActionHotkey={quickActionHotkey}
-          onQuickActionHotkeyChange={setQuickActionHotkey}
-          onGoToObsSettings={onGoToObsSettings}
-          onUpdate={updatePreset}
-          onUpdateHotkey={updatePresetHotkey}
-          onMove={movePreset}
-          onAdd={addPreset}
-          onRemove={removePreset}
-          onReset={applyPresets}
-        />
-      ) : null}
-
-      {section === "autostart" ? (
-        <AutostartSection
-          autostart={autostart}
-          onAutostartChange={setAutostart}
-          available={packaged}
-        />
-      ) : null}
-
-      {section === "about" ? (
-        <AboutSection
-          checkForUpdates={checkForUpdates}
-          onCheckForUpdatesChange={setCheckForUpdates}
-        />
-      ) : null}
-      </div>
-      {section === "autostart" && packaged !== true ? null : section === "tags" ? null : (
-        <div className="sticky bottom-0 z-10 -mx-5 mt-auto border-t border-white/10 bg-background/75 px-5 py-3 backdrop-blur-xl">
-          <Button type="submit" disabled={saving}>
-            <SaveIcon data-icon="inline-start" />
-            Einstellungen speichern
-          </Button>
+    <SettingsFormProvider value={form}>
+      <form
+        className="mx-auto flex min-h-full w-full max-w-200 flex-col px-5 pt-5"
+        noValidate
+        onSubmit={(e) => void handleSubmit(e)}
+      >
+        <div className="flex flex-1 flex-col gap-4 pb-4">
+          {section === "obs" ? <ObsSection /> : null}
+          {section === "storage" ? <StorageSection /> : null}
+          {section === "tags" ? <TagsSection /> : null}
+          {section === "presets" ? <PresetsSection /> : null}
+          {section === "autostart" ? <AutostartSection /> : null}
+          {section === "about" ? <AboutSection /> : null}
         </div>
-      )}
-    </form>
+        {section === "autostart" && packaged !== true ? null : section === "tags" ? null : (
+          <div className="sticky bottom-0 z-10 -mx-5 mt-auto border-t border-white/10 bg-background/75 px-5 py-3 backdrop-blur-xl">
+            <Button type="submit" disabled={saving}>
+              <SaveIcon data-icon="inline-start" />
+              Einstellungen speichern
+            </Button>
+          </div>
+        )}
+      </form>
+    </SettingsFormProvider>
   );
 }

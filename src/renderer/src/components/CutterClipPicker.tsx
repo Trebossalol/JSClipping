@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatDuration } from "../format";
+import { formatDuration } from "@/format";
 
 interface CutterClipPickerProps {
   open: boolean;

@@ -61,9 +61,9 @@ import {
   formatDuration,
   formatPixels,
   formatResolution,
-} from "../format";
+} from "@/format";
 import { DeleteClipDialog } from "./DeleteClipDialog";
-import { ClipTagPicker } from "./ClipTagPicker";
+import { ClipTagPicker } from "./settings/sections/tags/ClipTagPicker";
 
 const PAGE_SIZE = 12;
 
@@ -191,7 +191,7 @@ function ClipCard({
       className={cn(
         "gap-0 py-0 transition-shadow",
         selected &&
-          "ring-2 ring-primary shadow-[0_0_24px_color-mix(in_srgb,var(--primary)_28%,transparent)]",
+        "ring-2 ring-primary shadow-[0_0_24px_color-mix(in_srgb,var(--primary)_28%,transparent)]",
         clip.missing && "opacity-60",
       )}
     >
@@ -225,7 +225,7 @@ function ClipCard({
             </div>
           )}
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 via-background/15 to-transparent"
+            className="pointer-events-none absolute inset-0 bg-linear-to-t from-background/85 via-background/15 to-transparent"
             aria-hidden
           />
           {resolution ? (

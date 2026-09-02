@@ -1,9 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
-import { CutterApp, isCutterRoute } from "./CutterApp";
-import { QuickActionApp, isQuickActionRoute } from "./QuickActionApp";
-import { TopLoadingBar } from "./components/TopLoadingBar";
+import { MainAppWindow } from "@/window/main/MainAppWindow";
+import { CutterWindow, isCutterRoute } from "@/window/cutter/CutterWindow";
+import { QuickActionWindow, isQuickActionRoute } from "@/window/quick-menu/QuickActionWindow";
+import { TopLoadingBar } from "@/components/TopLoadingBar";
 import "./index.css";
 
 const root = document.getElementById("root");
@@ -17,10 +17,10 @@ const isCutter = isCutterRoute();
 createRoot(root).render(
   <StrictMode>
     {isQuickAction ? (
-      <QuickActionApp />
+      <QuickActionWindow />
     ) : (
       <TopLoadingBar>
-        {isCutter ? <CutterApp /> : <App />}
+        {isCutter ? <CutterWindow /> : <MainAppWindow />}
       </TopLoadingBar>
     )}
   </StrictMode>,

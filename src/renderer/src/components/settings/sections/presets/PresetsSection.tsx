@@ -4,7 +4,6 @@ import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -30,47 +29,34 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { APP_NAME, MAX_CLIP_PRESETS } from "@shared/app.config";
-import type { ClipPreset } from "@shared/ipc";
 import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
-import { HotkeyInput } from "../HotkeyInput";
+import { HotkeyInput } from "@/components/HotkeyInput";
 import {
   defaultPresetsForMax,
   duplicatePresetHotkeys,
   duplicatePresetSeconds,
   parseDurationParts,
   presetRangeError,
-  type PresetDraft,
-} from "./presets";
-import { Alert, AlertDescription } from "../ui/alert";
+} from "../../presets"
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useSettingsForm } from "@/context/settings-form-context";
 
-interface PresetsSectionProps {
-  clipPresets: PresetDraft[];
-  maxSeconds: number | null;
-  quickActionHotkey: string | null;
-  onQuickActionHotkeyChange: (hotkey: string | null) => void;
-  onGoToObsSettings: () => void;
-  onUpdate: (id: number, field: "minutes" | "seconds", value: string) => void;
-  onUpdateHotkey: (id: number, hotkey: string | null) => void;
-  onMove: (index: number, direction: -1 | 1) => void;
-  onAdd: () => void;
-  onRemove: (id: number) => void;
-  onReset: (values: ClipPreset[]) => void;
-}
+export function PresetsSection() {
+  const {
+    clipPresets,
+    maxSeconds,
+    quickActionHotkey,
+    onQuickActionHotkeyChange,
+    onGoToObsSettings,
+    onUpdatePreset,
+    onUpdatePresetHotkey,
+    onMovePreset,
+    onAddPreset,
+    onRemovePreset,
+    onResetPresets,
+  } = useSettingsForm();
 
-export function PresetsSection({
-  clipPresets,
-  maxSeconds,
-  quickActionHotkey,
-  onQuickActionHotkeyChange,
-  onGoToObsSettings,
-  onUpdate,
-  onUpdateHotkey,
-  onMove,
-  onAdd,
-  onRemove,
-  onReset,
-}: PresetsSectionProps) {
   const duplicateTotals = duplicatePresetSeconds(clipPresets, maxSeconds);
   const duplicateHotkeys = duplicatePresetHotkeys(
     clipPresets,
@@ -98,7 +84,7 @@ export function PresetsSection({
           <Field>
             <FieldLabel htmlFor="quick-action-hotkey">Schnellmenü</FieldLabel>
             <FieldDescription>
-             Dieses Tastenkürzel öffnet ein kleines Menü, in dem du direkt einen Clip-Titel vergeben kannst und aus deinen Clip-Presets auswählen kannst.
+              Dieses Tastenkürzel öffnet ein kleines Menü, in dem du direkt einen Clip-Titel vergeben kannst und aus deinen Clip-Presets auswählen kannst.
             </FieldDescription>
             <div className="flex flex-wrap items-center gap-2.5">
               <HotkeyInput
@@ -185,7 +171,7 @@ export function PresetsSection({
                         aria-invalid={invalid || duplicate}
                         value={draft.minutes}
                         onChange={(e) =>
-                          onUpdate(draft.id, "minutes", e.target.value)
+                          onUpdatePreset(draft.id, "minutes", e.target.value)
                         }
                       />
                       <InputGroupAddon align="inline-end">
@@ -204,7 +190,7 @@ export function PresetsSection({
                         aria-invalid={invalid || duplicate}
                         value={draft.seconds}
                         onChange={(e) =>
-                          onUpdate(draft.id, "seconds", e.target.value)
+                          onUpdatePreset(draft.id, "seconds", e.target.value)
                         }
                       />
                       <InputGroupAddon align="inline-end">
@@ -216,7 +202,7 @@ export function PresetsSection({
                       value={draft.hotkey}
                       invalid={duplicateHotkey}
                       onChange={(hotkey) =>
-                        onUpdateHotkey(draft.id, hotkey)
+                        onUpdatePresetHotkey(draft.id, hotkey)
                       }
                     />
                     <ButtonGroup>
@@ -225,7 +211,7 @@ export function PresetsSection({
                         variant="outline"
                         aria-label="Nach oben"
                         disabled={index === 0}
-                        onClick={() => onMove(index, -1)}
+                        onClick={() => onMovePreset(index, -1)}
                       >
                         <ChevronUpIcon />
                       </Button>
@@ -234,7 +220,7 @@ export function PresetsSection({
                         variant="outline"
                         aria-label="Nach unten"
                         disabled={index === clipPresets.length - 1}
-                        onClick={() => onMove(index, 1)}
+                        onClick={() => onMovePreset(index, 1)}
                       >
                         <ChevronDownIcon />
                       </Button>
@@ -243,7 +229,7 @@ export function PresetsSection({
                         variant="outline"
                         aria-label="Entfernen"
                         disabled={clipPresets.length <= 1}
-                        onClick={() => onRemove(draft.id)}
+                        onClick={() => onRemovePreset(draft.id)}
                       >
                         <Trash2Icon className="size-4 text-red-400" />
                       </Button>
@@ -276,7 +262,7 @@ export function PresetsSection({
                     ? `Höchstens ${MAX_CLIP_PRESETS} Presets`
                     : undefined
                 }
-                onClick={onAdd}
+                onClick={onAddPreset}
               >
                 <PlusIcon data-icon="inline-start" />
                 Hinzufügen
@@ -285,7 +271,7 @@ export function PresetsSection({
                 type="button"
                 size="sm"
                 variant="destructive"
-                onClick={() => onReset(defaultPresetsForMax(maxSeconds))}
+                onClick={() => onResetPresets(defaultPresetsForMax(maxSeconds))}
               >
                 <RotateCcwIcon data-icon="inline-start" />
                 Auf Standard zurücksetzen

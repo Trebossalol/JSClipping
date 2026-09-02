@@ -24,11 +24,7 @@ import {
   InfoIcon,
   RefreshCwIcon,
 } from "lucide-react";
-
-interface AboutSectionProps {
-  checkForUpdates: boolean;
-  onCheckForUpdatesChange: (value: boolean) => void;
-}
+import { useSettingsForm } from "@/context/settings-form-context";
 
 export function showUpdateAvailableToast(update: AppUpdateInfo): void {
   toast.info(`Version ${update.version} ist verfügbar.`, {
@@ -41,10 +37,8 @@ export function showUpdateAvailableToast(update: AppUpdateInfo): void {
   });
 }
 
-export function AboutSection({
-  checkForUpdates,
-  onCheckForUpdatesChange,
-}: AboutSectionProps) {
+export function AboutSection() {
+  const { checkForUpdates, onCheckForUpdatesChange } = useSettingsForm();
   const [version, setVersion] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
