@@ -31,15 +31,15 @@ import {
 import { APP_NAME, MAX_CLIP_PRESETS } from "@shared/app.config";
 import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
-import { HotkeyInput } from "../../HotkeyInput";
+import { HotkeyInput } from "@/components/HotkeyInput";
 import {
   defaultPresetsForMax,
   duplicatePresetHotkeys,
   duplicatePresetSeconds,
   parseDurationParts,
   presetRangeError,
-} from "../presets";
-import { Alert, AlertDescription } from "../../ui/alert";
+} from "../../presets"
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSettingsForm } from "@/context/settings-form-context";
 
 export function PresetsSection() {

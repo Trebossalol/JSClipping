@@ -31,8 +31,8 @@ import {
   TypeIcon,
   UnplugIcon,
 } from "lucide-react";
-import { getClipAvailability } from "./components/ClipActions";
-import logoUrl from "../../../resources/logo.svg";
+import { getClipAvailability } from "../../components/ClipActions";
+import logoUrl from "../../../../../resources/logo.svg";
 
 export function isQuickActionRoute(): boolean {
   return window.location.hash.replace(/^#/, "") === "quick";
@@ -42,7 +42,7 @@ function presetValue(preset: ClipPreset): string {
   return String(preset.seconds);
 }
 
-export function QuickActionApp() {
+export function QuickActionWindow() {
   const [config, setConfig] = useState<AppConfigDto | null>(null);
   const [obsStatus, setObsStatus] = useState<ObsStatus | null>(null);
   const [title, setTitle] = useState("");

@@ -18,16 +18,16 @@ import { normalizeHotkey } from "@shared/hotkeys";
 import { formatDuration } from "@/format";
 import { SaveIcon } from "lucide-react";
 import type { SettingsSection } from "../AppSidebar";
-import { AboutSection } from "./sections/AboutSection";
-import { AutostartSection } from "./sections/AutostartSection";
-import { ObsSection } from "./sections/ObsSection";
-import { PresetsSection } from "./sections/PresetsSection";
+import { AboutSection } from "./sections/about/AboutSection";
+import { AutostartSection } from "./sections/autostart/AutostartSection";
+import { ObsSection } from "./sections/obs/ObsSection";
+import { PresetsSection } from "./sections/presets/PresetsSection";
 import {
   SettingsFormProvider,
   type SettingsFormValue,
 } from "@/context/settings-form-context";
-import { StorageSection } from "./sections/StorageSection";
-import { TagsSection } from "./sections/TagsSection";
+import { StorageSection } from "./sections/storage/StorageSection";
+import { TagsSection } from "./sections/tags/TagsSection";
 import {
   collectClipPresets,
   draftsFromPresets,

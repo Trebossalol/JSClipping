@@ -1,4 +1,3 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -18,8 +17,8 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { FolderIcon, FolderOutputIcon, InfoIcon } from "lucide-react";
-import { StoragePanel } from "../../StoragePanel";
+import { FolderIcon, FolderOutputIcon } from "lucide-react";
+import { StoragePanel } from "./StoragePanel";
 import { useSettingsForm } from "@/context/settings-form-context";
 
 export function StorageSection() {

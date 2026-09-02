@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,14 +18,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import type { StorageInfo } from "@shared/ipc";
-import { formatBytes } from "../format";
+import { formatBytes } from "@/format";
 import {
   AlertCircleIcon,
   HardDriveIcon,
   RefreshCwIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTopLoader } from "./TopLoadingBar";
+import { useTopLoader } from "@/components/TopLoadingBar";
 
 const POLL_MS = 10_000;
 
