@@ -89,10 +89,11 @@ export function setClipTags(
   return { ok: true, clip: live ?? { ...clip, tagIds: clip.tagIds } };
 }
 
-export function deleteClip(
+export async function deleteClip(
   appDataDir: string,
   id: string,
-): { ok: true } | { ok: false; error: string } {
+  moveToTrash: (filePath: string) => Promise<void>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const clips = readStore(appDataDir);
   const index = clips.findIndex((c) => c.id === id);
   if (index < 0) return { ok: false, error: "Clip nicht gefunden." };
@@ -102,12 +103,12 @@ export function deleteClip(
   if (clip.filePath && fs.existsSync(clip.filePath)) {
     ignorePathTemporarily(clip.filePath);
     try {
-      fs.unlinkSync(clip.filePath);
+      await moveToTrash(clip.filePath);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
         ok: false,
-        error: `Datei konnte nicht gelöscht werden: ${message}`,
+        error: `Datei konnte nicht in den Papierkorb verschoben werden: ${message}`,
       };
     }
   }

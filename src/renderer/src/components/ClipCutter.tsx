@@ -29,6 +29,7 @@ import {
 } from "@/format";
 import {
   ChevronDownIcon,
+  ImageIcon,
   MonitorIcon,
   PauseIcon,
   PlayIcon,
@@ -228,6 +229,7 @@ interface ClipCutterProps {
     scale?: ScaleTarget | null,
     name?: string | null,
   ) => void;
+  onExportGif?: (ranges: CutRange[]) => void;
 }
 
 export function ClipCutter({
@@ -237,6 +239,7 @@ export function ClipCutter({
   error,
   onCancel,
   onSave,
+  onExportGif,
 }: ClipCutterProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -255,7 +258,9 @@ export function ClipCutter({
     () => ranges[0]?.id ?? null,
   );
   const [gapHint, setGapHint] = useState<string | null>(null);
-  const [saveMode, setSaveMode] = useState<"new" | "overwrite" | null>(null);
+  const [saveMode, setSaveMode] = useState<"new" | "overwrite" | "gif" | null>(
+    null,
+  );
   const [sourceSize, setSourceSize] = useState<{
     width: number;
     height: number;
@@ -527,6 +532,15 @@ export function ClipCutter({
     const nextName = trimmed && trimmed !== clip.name ? trimmed : null;
     onSave(next, overwrite, parseScaleKey(scaleKey), nextName);
   }
+
+  function exportGif(): void {
+    if (!onExportGif) return;
+    const next = sortedRanges(ranges).map(({ start, end }) => ({ start, end }));
+    setSaveMode("gif");
+    onExportGif(next);
+  }
+
+  const canExportGif = canSave && Boolean(onExportGif);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent">
@@ -830,6 +844,20 @@ export function ClipCutter({
         <ButtonGroup aria-label="Clip speichern">
           <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
             Abbrechen
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!canExportGif}
+            title="GIF aus den Behalten-Bereichen (max. 12s, 480p)"
+            onClick={exportGif}
+          >
+            {busy && saveMode === "gif" ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <ImageIcon data-icon="inline-start" />
+            )}
+            Als GIF exportieren
           </Button>
           <Button
             type="button"

@@ -50,6 +50,7 @@ import {
   MoreHorizontalIcon,
   PlayIcon,
   ScissorsIcon,
+  SearchIcon,
   TagsIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -114,6 +115,8 @@ function filterClips(
   filter: ClipFilter,
   tagIds: string[],
   untaggedOnly: boolean,
+  query: string,
+  tags: TagRecord[],
 ): ClipRecord[] {
   let next = clips;
   if (filter === "untitled") {
@@ -122,11 +125,20 @@ function filterClips(
     next = next.filter((c) => isLast24h(c.createdAt));
   }
   if (untaggedOnly) {
-    return next.filter((c) => clipTagIds(c).length === 0);
-  }
-  if (tagIds.length > 0) {
+    next = next.filter((c) => clipTagIds(c).length === 0);
+  } else if (tagIds.length > 0) {
     const wanted = new Set(tagIds);
-    return next.filter((c) => clipTagIds(c).some((id) => wanted.has(id)));
+    next = next.filter((c) => clipTagIds(c).some((id) => wanted.has(id)));
+  }
+  const q = query.trim().toLowerCase();
+  if (q) {
+    const tagNameById = new Map(
+      tags.map((tag) => [tag.id, tag.name.toLowerCase()] as const),
+    );
+    next = next.filter((c) => {
+      if (c.name.toLowerCase().includes(q)) return true;
+      return clipTagIds(c).some((id) => tagNameById.get(id)?.includes(q));
+    });
   }
   return next;
 }
@@ -458,12 +470,20 @@ export function RecentClips({
   const [deleting, setDeleting] = useState(false);
   const [tagFilterIds, setTagFilterIds] = useState<string[]>([]);
   const [untaggedOnly, setUntaggedOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const sectionRef = useRef<HTMLDivElement>(null);
 
   const knownTagIds = new Set(tags.map((tag) => tag.id));
   const activeTagIds = tagFilterIds.filter((id) => knownTagIds.has(id));
-  const visible = filterClips(clips, filter, activeTagIds, untaggedOnly);
-  const filterKey = `${filter}:${untaggedOnly ? UNTAGGED_FILTER : activeTagIds.slice().sort().join(",")}`;
+  const visible = filterClips(
+    clips,
+    filter,
+    activeTagIds,
+    untaggedOnly,
+    searchQuery,
+    tags,
+  );
+  const filterKey = `${filter}:${untaggedOnly ? UNTAGGED_FILTER : activeTagIds.slice().sort().join(",")}:${searchQuery.trim().toLowerCase()}`;
 
   let nextPage = page;
   if (pageKey !== filterKey || pageNewestId !== newestId) {
@@ -518,32 +538,40 @@ export function RecentClips({
         <p className="text-xs text-muted-foreground">
           {clips.length} in der Bibliothek
         </p>
-        <div className="ml-auto">
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            value={filter}
-            onValueChange={(value) => {
-              if (value === "all" || value === "untitled" || value === "last24h") {
-                onFilterChange(value);
-              }
-            }}
-          >
-            <ToggleGroupItem value="all">
-              <LayoutGridIcon data-icon="inline-start" className="opacity-70" />
-              Alle
-            </ToggleGroupItem>
-            <ToggleGroupItem value="untitled">
-              <FilePenIcon data-icon="inline-start" className="opacity-70" />
-              Unbenannt
-            </ToggleGroupItem>
-            <ToggleGroupItem value="last24h" title="Nur Clips der letzten 24 Stunden">
-              <ClockIcon data-icon="inline-start" className="opacity-70" />
-              24 Std.
-            </ToggleGroupItem>
-          </ToggleGroup>
+        <div className="relative ml-auto w-full min-w-40 max-w-56 sm:w-56">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground opacity-70" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Clips suchen…"
+            className="pl-8"
+            aria-label="Clips suchen"
+          />
         </div>
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          size="sm"
+          value={filter}
+          onValueChange={(value) => {
+            if (value === "all" || value === "untitled" || value === "last24h") {
+              onFilterChange(value);
+            }
+          }}
+        >
+          <ToggleGroupItem value="all">
+            <LayoutGridIcon data-icon="inline-start" className="opacity-70" />
+            Alle
+          </ToggleGroupItem>
+          <ToggleGroupItem value="untitled">
+            <FilePenIcon data-icon="inline-start" className="opacity-70" />
+            Unbenannt
+          </ToggleGroupItem>
+          <ToggleGroupItem value="last24h" title="Nur Clips der letzten 24 Stunden">
+            <ClockIcon data-icon="inline-start" className="opacity-70" />
+            24 Std.
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
       {tags.length > 0 ? (
         <ToggleGroup
@@ -582,24 +610,28 @@ export function RecentClips({
             <EmptyTitle>
               {clips.length === 0
                 ? "Noch keine Clips"
-                : untaggedOnly
-                  ? "Keine Clips ohne Tags"
-                  : activeTagIds.length > 0
-                    ? "Keine Clips mit diesen Tags"
-                    : filter === "last24h"
-                      ? "Keine Clips der letzten 24 Stunden"
-                      : "Keine unbenannten Clips"}
+                : searchQuery.trim()
+                  ? `Keine Treffer für „${searchQuery.trim()}“`
+                  : untaggedOnly
+                    ? "Keine Clips ohne Tags"
+                    : activeTagIds.length > 0
+                      ? "Keine Clips mit diesen Tags"
+                      : filter === "last24h"
+                        ? "Keine Clips der letzten 24 Stunden"
+                        : "Keine unbenannten Clips"}
             </EmptyTitle>
             <EmptyDescription>
               {clips.length === 0
                 ? "Speichere einen Replay aus OBS oder drücke eine Clip-Schaltfläche."
-                : untaggedOnly
-                  ? "Jeder Clip in der Bibliothek hat mindestens ein Tag."
-                  : activeTagIds.length > 0
-                    ? "Kein Clip hat eines der ausgewählten Tags."
-                    : filter === "last24h"
-                      ? "Es gibt keine Clips aus den letzten 24 Stunden."
-                      : "Jeder Clip in der Bibliothek hat einen Titel."}
+                : searchQuery.trim()
+                  ? "Kein Clip-Titel oder Tag stimmt mit der Suche überein."
+                  : untaggedOnly
+                    ? "Jeder Clip in der Bibliothek hat mindestens ein Tag."
+                    : activeTagIds.length > 0
+                      ? "Kein Clip hat eines der ausgewählten Tags."
+                      : filter === "last24h"
+                        ? "Es gibt keine Clips aus den letzten 24 Stunden."
+                        : "Jeder Clip in der Bibliothek hat einen Titel."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

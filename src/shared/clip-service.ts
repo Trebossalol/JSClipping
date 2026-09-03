@@ -426,6 +426,94 @@ export async function cutVideoToFile(
   return { durationSeconds, width, height };
 }
 
+const MAX_GIF_KEEP_SECONDS = 12;
+const GIF_MAX_WIDTH = 480;
+const GIF_FPS = 12;
+
+export async function exportGifToFile(
+  src: string,
+  dst: string,
+  ranges: CutRange[],
+  options?: { log?: RunLog },
+): Promise<{ durationSeconds: number }> {
+  if (!fs.existsSync(src)) {
+    throw new Error("Die Clip-Datei fehlt.");
+  }
+
+  const log = options?.log;
+  const total = await getVideoDuration(src);
+  const normalized = normalizeCutRanges(ranges, total);
+  const keepSeconds = normalized.reduce(
+    (sum, range) => sum + (range.end - range.start),
+    0,
+  );
+  if (keepSeconds > MAX_GIF_KEEP_SECONDS + 0.05) {
+    throw new Error(
+      `GIF-Export ist auf höchstens ${MAX_GIF_KEEP_SECONDS}s begrenzt. Kürze die Behalten-Bereiche.`,
+    );
+  }
+
+  ensureDir(path.dirname(dst));
+  const work = path.join(os.tmpdir(), `easyclip-gif-${crypto.randomUUID()}`);
+  ensureDir(work);
+  const ext = path.extname(src) || ".mp4";
+  const cutPath = path.join(work, `cut${ext}`);
+  const palettePath = path.join(work, "palette.png");
+
+  try {
+    if (normalized.length === 1) {
+      const range = normalized[0]!;
+      await extractRange(src, cutPath, range.start, range.end - range.start, log);
+    } else {
+      const parts: string[] = [];
+      for (let i = 0; i < normalized.length; i++) {
+        const range = normalized[i]!;
+        const part = path.join(work, `seg-${i}${ext}`);
+        await extractRange(src, part, range.start, range.end - range.start, log);
+        parts.push(part);
+      }
+      await concatSegments(parts, cutPath, log);
+    }
+
+    const scaleFilter =
+      `fps=${GIF_FPS},scale=${GIF_MAX_WIDTH}:-1:flags=lanczos:force_original_aspect_ratio=decrease:force_divisible_by=2`;
+    await runFfmpeg(
+      ["-y", "-i", cutPath, "-vf", `${scaleFilter},palettegen=stats_mode=diff`, palettePath],
+      log,
+    );
+    await runFfmpeg(
+      [
+        "-y",
+        "-i",
+        cutPath,
+        "-i",
+        palettePath,
+        "-lavfi",
+        `${scaleFilter}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5`,
+        "-loop",
+        "0",
+        dst,
+      ],
+      log,
+    );
+
+    let durationSeconds: number;
+    try {
+      durationSeconds = (await getVideoInfo(dst)).durationSeconds ?? keepSeconds;
+    } catch {
+      durationSeconds = keepSeconds;
+    }
+    log?.info(`GIF output: ${dst} (${fileSize(dst)} bytes)`);
+    return { durationSeconds };
+  } finally {
+    try {
+      fs.rmSync(work, { recursive: true, force: true });
+    } catch {
+      // Temp cleanup is best-effort.
+    }
+  }
+}
+
 export interface SaveAndTrimOptions {
   obs: OBSWebSocket;
   seconds: number;
